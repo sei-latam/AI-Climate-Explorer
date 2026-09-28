@@ -1,0 +1,75 @@
+/* Custom Scrollbar para paneles laterales */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Transiciones para las tarjetas de mapas base */
+.basemap-card {
+  transition: all 0.2s ease-in-out;
+}
+.basemap-card:hover {
+  transform: translateY(-1px);
+}
+
+/* InfoBox de Cesium con estilo adaptado */
+.cesium-infoBox {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+.cesium-infoBox-title {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  font-family: inherit !important;
+}
+
+
+
+
+/* Forzar visibilidad y estilo del InfoBox de Cesium como Pop-Up Flotante 2D */
+.cesium-viewer-infoBoxContainer {
+  top: 80px !important;
+  right: 20px !important;
+  z-index: 9999 !important;
+}
+
+.cesium-infoBox {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid #cbd5e1 !important;
+  width: 260px !important;
+  max-height: 300px !important;
+}
+
+.cesium-infoBox-title {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  font-weight: bold !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-radius: 12px 12px 0 0 !important;
+  padding: 8px 12px !important;
+}
+
+.cesium-infoBox-description {
+  padding: 4px !important;
+}
+
+.cesium-infoBox-iframe {
+  border: none !important;
+  width: 100% !important;
+  height: 120px !important;
+}
