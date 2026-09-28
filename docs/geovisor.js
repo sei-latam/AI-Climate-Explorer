@@ -90,13 +90,49 @@ const BASEMAPS_3D = {
   }
 };
 
+
+
+// --- PLANTAS INICIALES Y MOTOR DE RIESGO CLIMÁTICO ---
+const INITIAL_PLANTS = [
+  { id: 'plant_cartagena', name: 'Cartagena', lat: 10.3910, lng: -75.4794, source: 'Sistema', risk2030: 2.10, risk2050: 4.80, enabled: true },
+  { id: 'plant_cairo', name: 'Cairo', lat: 5.8231, lng: -75.8231, source: 'Sistema', risk2030: 1.50, risk2050: 3.20, enabled: true },
+  { id: 'plant_nare', name: 'Nare', lat: 6.1833, lng: -74.5833, source: 'Sistema', risk2030: 1.80, risk2050: 3.90, enabled: true },
+  { id: 'plant_rioclaro', name: 'Rioclaro', lat: 5.9000, lng: -74.8500, source: 'Sistema', risk2030: 2.40, risk2050: 5.10, enabled: true },
+  { id: 'plant_sogamoso', name: 'Sogamoso', lat: 7.1000, lng: -73.4000, source: 'Sistema', risk2030: 1.25, risk2050: 3.74, enabled: true },
+  { id: 'plant_tolu', name: 'Tolú', lat: 9.5222, lng: -75.5811, source: 'Sistema', risk2030: 2.80, risk2050: 5.60, enabled: true },
+  { id: 'plant_yumbo', name: 'Yumbo', lat: 3.5833, lng: -76.5000, source: 'Sistema', risk2030: 1.90, risk2050: 4.20, enabled: true }
+];
+
+// Asigna valores de riesgo climático para ubicaciones nuevas basadas en coordenadas
+function calculateClimateRisk(lat, lng) {
+  const seed = Math.abs(Math.sin(lat * 12.9898 + lng * 78.233));
+  const risk2030 = parseFloat((1.1 + seed * 1.8).toFixed(2));
+  const risk2050 = parseFloat((risk2030 * (1.9 + seed * 0.5)).toFixed(2));
+  return { risk2030, risk2050 };
+}
+
+// ============================================================
+// 2. INICIALIZACIÓN DE PLANTAS BASE
+// ============================================================
+function initDefaultAssets() {
+  if (currentAssetsData.length === 0) {
+    INITIAL_PLANTS.forEach(plant => {
+      agregarPuntoAlSistema(plant.name, plant.lat, plant.lng, plant.source || 'Argos', true);
+    });
+    finalizarCargaMasiva();
+  }
+}
+
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', () => {
   initClock();
   initLeaflet();
   initOpacitySlider();
   switchView('3d');
+  initDefaultAssets();
 });
+
+
 
 function initClock() {
   const updateClock = () => {
@@ -426,6 +462,7 @@ function dmsToDecimal(degrees, minutes, seconds, direction) {
   return decimal;
 }
 
+
 function addManualLocation() {
   const nameInput = document.getElementById('manual-name');
   const name = nameInput.value.trim() || `Asset-${userLocations.length + 1}`;
@@ -465,16 +502,23 @@ function addManualLocation() {
     return;
   }
 
+  // Calcular riesgo para las coordenadas ingresadas
+  const { risk2030, risk2050 } = calculateClimateRisk(lat, lng);
+
   const newLocation = { 
     id: 'loc_' + Date.now(), 
     name: name, 
     lat: lat, 
     lng: lng, 
-    source: 'manual' 
+    source: 'manual',
+    risk2030: risk2030,
+    risk2050: risk2050,
+    enabled: true
   };
 
   userLocations.push(newLocation);
 
+  // Limpiar formulario
   nameInput.value = '';
   document.getElementById('manual-lat').value = '';
   document.getElementById('manual-lng').value = '';
@@ -487,9 +531,76 @@ function addManualLocation() {
 
   renderActiveLayers();
   plotOnMap(newLocation, true);
+  updateRightPanel(); // Recalcula promedios y actualiza la lista del panel derecho
 }
 
+
+
+
+// ============================================================
+// 3. INSERCIÓN MANUAL
+// ============================================================
+function addManualLocation() {
+  const nameInput = document.getElementById('manual-name');
+  const name = nameInput ? nameInput.value.trim() : '';
+
+  let lat, lng;
+
+  if (activeCoordType === 'dd') {
+    lat = parseFloat(document.getElementById('manual-lat').value);
+    lng = parseFloat(document.getElementById('manual-lng').value);
+  } else {
+    const latDeg = document.getElementById('lat-deg').value;
+    const latMin = document.getElementById('lat-min').value;
+    const latSec = document.getElementById('lat-sec').value;
+    const latDir = document.getElementById('lat-dir').value;
+
+    const lngDeg = document.getElementById('lng-deg').value;
+    const lngMin = document.getElementById('lng-min').value;
+    const lngSec = document.getElementById('lng-sec').value;
+    const lngDir = document.getElementById('lng-dir').value;
+
+    if (!latDeg || !lngDeg) {
+      alert("Por favor ingresa al menos los grados en las coordenadas GMS.");
+      return;
+    }
+
+    lat = dmsToDecimal(latDeg, latMin, latSec, latDir);
+    lng = dmsToDecimal(lngDeg, lngMin, lngSec, lngDir);
+  }
+
+  if (isNaN(lat) || isNaN(lng)) {
+    alert("Por favor ingresa coordenadas válidas.");
+    return;
+  }
+
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    alert("Las coordenadas resultantes están fuera del rango válido.");
+    return;
+  }
+
+  // Enviar al embudo unificado
+  agregarPuntoAlSistema(name || `Punto-${currentAssetsData.length + 1}`, lat, lng, 'Manual');
+
+  // Limpiar campos del formulario
+  if (nameInput) nameInput.value = '';
+  document.getElementById('manual-lat').value = '';
+  document.getElementById('manual-lng').value = '';
+  document.getElementById('lat-deg').value = '';
+  document.getElementById('lat-min').value = '';
+  document.getElementById('lat-sec').value = '';
+  document.getElementById('lng-deg').value = '';
+  document.getElementById('lng-min').value = '';
+  document.getElementById('lng-sec').value = '';
+}
+
+
+
 function plotOnMap(location, centerMap = false) {
+  const r2030 = (location.v2030 ?? location.risk2030 ?? 0);
+  const r2050 = (location.v2050 ?? location.risk2050 ?? 0);
+  const diff = r2050 - r2030;
+
   const popupContent = `
     <div class="p-2 text-slate-900 font-sans">
       <div class="flex items-center gap-1.5 mb-1">
@@ -497,6 +608,9 @@ function plotOnMap(location, centerMap = false) {
         <h4 class="font-bold text-xs text-slate-800 m-0">${location.name}</h4>
       </div>
       <div class="text-[11px] text-slate-600 space-y-0.5 border-t border-slate-200 pt-1 mt-1">
+        <p class="m-0"><b>2030 Loss:</b> ${r2030.toFixed(2)}%</p>
+        <p class="m-0"><b>2050 Loss:</b> ${r2050.toFixed(2)}%</p>
+        <p class="m-0"><b>Cambio:</b> ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</p>
         <p class="m-0"><b>Latitud:</b> ${location.lat.toFixed(6)}</p>
         <p class="m-0"><b>Longitud:</b> ${location.lng.toFixed(6)}</p>
         <p class="m-0 text-[10px] text-slate-400 capitalize"><b>Origen:</b> ${location.source || 'Manual'}</p>
@@ -566,6 +680,10 @@ function mostrarCesiumPopup(entity, location) {
   
   if (!container || !content) return;
 
+  const r2030 = (location.v2030 ?? location.risk2030 ?? 0);
+  const r2050 = (location.v2050 ?? location.risk2050 ?? 0);
+  const diff = r2050 - r2030;
+
   content.innerHTML = `
     <div class="font-sans pr-4">
       <div class="flex items-center gap-1.5 mb-1">
@@ -573,6 +691,9 @@ function mostrarCesiumPopup(entity, location) {
         <h4 class="font-bold text-xs text-slate-800 m-0">${location.name}</h4>
       </div>
       <div class="text-[11px] text-slate-600 space-y-0.5 border-t border-slate-200 pt-1 mt-1">
+        <p class="m-0"><b>2030 Loss:</b> ${r2030.toFixed(2)}%</p>
+        <p class="m-0"><b>2050 Loss:</b> ${r2050.toFixed(2)}%</p>
+        <p class="m-0"><b>Cambio:</b> ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</p>
         <p class="m-0"><b>Latitud:</b> ${location.lat.toFixed(6)}</p>
         <p class="m-0"><b>Longitud:</b> ${location.lng.toFixed(6)}</p>
         <p class="m-0 text-[10px] text-slate-400 capitalize"><b>Origen:</b> ${location.source || 'Manual'}</p>
@@ -624,7 +745,13 @@ function cerrarCesiumPopup() {
   }
 }
 
+
 function toggleLocationVisibility(id, visible) {
+  const loc = userLocations.find(l => String(l.id) === String(id));
+  if (loc) {
+    loc.enabled = visible;
+  }
+
   const marker = mapMarkers[id];
   if (marker && leafletMap) {
     if (visible) leafletMap.addLayer(marker);
@@ -635,7 +762,11 @@ function toggleLocationVisibility(id, visible) {
   if (entity) {
     entity.show = visible;
   }
+
+  updateRightPanel(); // Recalcular métricas en el panel derecho al activar/desactivar la casilla
 }
+
+
 
 function renderActiveLayers() {
   const container = document.getElementById('contenedor-capas');
@@ -709,9 +840,12 @@ function deleteLocation(event, id) {
 
   userLocations = userLocations.filter(loc => String(loc.id) !== String(id));
   renderActiveLayers();
+  updateRightPanel(); // Recalcular panel derecho tras eliminar
 }
 
-// --- IMPORTACIÓN DE ARCHIVOS ---
+// ============================================================
+// 4. IMPORTACIÓN DE ARCHIVOS (TXT, CSV, GEOJSON)
+// ============================================================
 function handleFileUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -719,18 +853,73 @@ function handleFileUpload(event) {
   const fileName = file.name;
   const ext = fileName.split('.').pop().toLowerCase();
 
+  const reader = new FileReader();
   if (ext === 'csv' || ext === 'txt') {
-    const reader = new FileReader();
     reader.onload = (e) => parseCSVData(e.target.result, fileName);
     reader.readAsText(file);
   } else if (ext === 'geojson' || ext === 'json') {
-    const reader = new FileReader();
     reader.onload = (e) => parseGeoJSONData(JSON.parse(e.target.result), fileName);
     reader.readAsText(file);
   } else {
-    alert(`Archivo "${fileName}" subido. Asegúrate de procesar datos vectoriales compatibles (CSV o GeoJSON).`);
+    alert(`Archivo "${fileName}" no soportado. Sube un archivo CSV, TXT o GeoJSON.`);
   }
 }
+
+function parseCSVData(csvText, fileName) {
+  const lines = csvText.split('\n').filter(line => line.trim() !== '');
+  if (lines.length < 2) return;
+
+  // Sombra de detección flexible de separadores (coma o punto y coma)
+  const separator = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(separator).map(h => h.trim().toLowerCase());
+  
+  const latIndex = headers.findIndex(h => h.includes('lat'));
+  const lngIndex = headers.findIndex(h => h.includes('lon') || h.includes('lng'));
+  const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('nombre') || h.includes('asset') || h.includes('punto'));
+
+  if (latIndex === -1 || lngIndex === -1) {
+    alert("No se identificaron columnas de Latitud ('lat') y Longitud ('lon' o 'lng') en el archivo.");
+    return;
+  }
+
+  let addedCount = 0;
+  lines.slice(1).forEach((line, i) => {
+    const cols = line.split(separator).map(c => c.trim());
+    const lat = parseFloat(cols[latIndex]);
+    const lng = parseFloat(cols[lngIndex]);
+    const name = nameIndex !== -1 && cols[nameIndex] ? cols[nameIndex] : `Importado-${i + 1}`;
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      // Carga en modo silencioso para optimizar rendimiento
+      agregarPuntoAlSistema(name, lat, lng, fileName, true);
+      addedCount++;
+    }
+  });
+
+  // Renderizar panel y mapa al finalizar la lectura completa
+  finalizarCargaMasiva();
+  alert(`Se importaron exitosamente ${addedCount} ubicaciones desde ${fileName}.`);
+}
+
+function parseGeoJSONData(geoJson, fileName) {
+  if (!geoJson.features || !Array.isArray(geoJson.features)) return;
+
+  let addedCount = 0;
+  geoJson.features.forEach((feat, i) => {
+    if (feat.geometry && feat.geometry.type === 'Point') {
+      const [lng, lat] = feat.geometry.coordinates;
+      const name = feat.properties?.name || feat.properties?.nombre || `GeoJSON-${i + 1}`;
+
+      agregarPuntoAlSistema(name, lat, lng, fileName, true);
+      addedCount++;
+    }
+  });
+
+  finalizarCargaMasiva();
+  alert(`Se importaron exitosamente ${addedCount} puntos desde ${fileName}.`);
+}
+
+
 
 function parseCSVData(csvText, fileName) {
   const lines = csvText.split('\n').filter(line => line.trim() !== '');
@@ -754,7 +943,17 @@ function parseCSVData(csvText, fileName) {
     const name = nameIndex !== -1 && cols[nameIndex] ? cols[nameIndex] : `Punto-${i + 1}`;
 
     if (!isNaN(lat) && !isNaN(lng)) {
-      const loc = { id: 'loc_' + Date.now() + '_' + i, name, lat, lng, source: fileName };
+      const { risk2030, risk2050 } = calculateClimateRisk(lat, lng);
+      const loc = { 
+        id: 'loc_' + Date.now() + '_' + i, 
+        name, 
+        lat, 
+        lng, 
+        source: fileName,
+        risk2030,
+        risk2050,
+        enabled: true
+      };
       userLocations.push(loc);
       plotOnMap(loc, false);
       addedCount++;
@@ -762,6 +961,7 @@ function parseCSVData(csvText, fileName) {
   });
 
   renderActiveLayers();
+  updateRightPanel();
   alert(`Se importaron exitosamente ${addedCount} ubicaciones desde ${fileName}.`);
 }
 
@@ -773,8 +973,18 @@ function parseGeoJSONData(geoJson, fileName) {
     if (feat.geometry && feat.geometry.type === 'Point') {
       const [lng, lat] = feat.geometry.coordinates;
       const name = feat.properties?.name || feat.properties?.nombre || `Punto-${i + 1}`;
+      const { risk2030, risk2050 } = calculateClimateRisk(lat, lng);
 
-      const loc = { id: 'loc_' + Date.now() + '_' + i, name, lat, lng, source: fileName };
+      const loc = { 
+        id: 'loc_' + Date.now() + '_' + i, 
+        name, 
+        lat, 
+        lng, 
+        source: fileName,
+        risk2030,
+        risk2050,
+        enabled: true
+      };
       userLocations.push(loc);
       plotOnMap(loc, false);
       addedCount++;
@@ -782,8 +992,10 @@ function parseGeoJSONData(geoJson, fileName) {
   });
 
   renderActiveLayers();
+  updateRightPanel();
   alert(`Se importaron ${addedCount} puntos desde ${fileName}.`);
 }
+
 
 // --- DESPLEGAR PANELES Y CONTROLES ---
 function toggleWidget(bodyId, iconId) {
@@ -992,30 +1204,24 @@ function manejarEventoMover3D(coord) {
   procesarMoverPunto(coord);
 }
 
-// --- LÓGICA DE DIBUJO MULTI-HERRAMIENTA ---
+// ============================================================
+// 5. ANÁLISIS ESPACIAL Y HERRAMIENTAS DE DIBUJO
+// ============================================================
 function procesarClicPunto(coord) {
   if (!activeDrawTool) return;
 
   if (activeDrawTool === 'point') {
-    const nombre = prompt('Nombre del Punto de Análisis:', `Análisis-${userLocations.length + 1}`);
+    const nombre = prompt('Nombre del Punto de Análisis:', `Análisis-${currentAssetsData.length + 1}`);
     if (!nombre) return;
 
-    const loc = {
-      id: 'loc_' + Date.now(),
-      name: nombre,
-      lat: coord.lat,
-      lng: coord.lng,
-      source: 'Análisis Espacial'
-    };
+    // Conectar la herramienta de punto al embudo central
+    agregarPuntoAlSistema(nombre, coord.lat, coord.lng, 'Análisis Espacial');
 
-    userLocations.push(loc);
-    plotOnMap(loc, true);
-    renderActiveLayers();
     desactivarHerramientasActuales();
 
     const statusEl = document.getElementById('statusDibujo');
     if (statusEl) {
-      statusEl.textContent = 'Punto agregado correctamente';
+      statusEl.textContent = 'Punto agregado y calculado en tiempo real';
       statusEl.className = 'text-[9px] text-green-400 font-semibold px-1';
     }
 
@@ -1342,17 +1548,17 @@ const agentResponses = {
     suggestion: "Los datos de grilla han sido validados. Presiona el botón a continuación para transferir el contexto al <b>Agente 2 (Análisis de Riesgo)</b>."
   },
   2: {
-    agentName: "Agente 2: Modelado de Riesgo y Exposición",
-    toolExecuted: "run_risk_model(input_raster='extreme_wind_5days', asset_id='SOG-01', model='Phi-3-Climate')",
-    llmReasoning: "Tomando los datos de viento procesados por el Agente 1, calculé la matriz de vulnerabilidad física y pérdida esperada en la infraestructura hidroeléctrica.",
+    agentName: "Agent 2: Evaluation of Physical Vulnerability and Expected Loss",
+    toolExecuted: "run_risk_model(input_query='sogamoso', asset_id='SOG-01', model='Phi-3-Climate')",
+    llmReasoning: "Considering the information from Agent 1, I evaluated the physical vulnerability and expected loss in Sogamoso under the SSP5-8.5 scenario. The model indicates a significant increase in expected annual loss by 2050.",
     cardHTML: `
       <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1 text-[10px]">
         <div class="flex justify-between border-b border-slate-800 pb-1">
-          <span class="text-slate-400">Pérdida Esperada Anual (2030):</span>
+          <span class="text-slate-400">Expected Annual Loss (2030):</span>
           <span class="font-bold text-amber-400">1.25% ($450K USD)</span>
         </div>
         <div class="flex justify-between pt-0.5">
-          <span class="text-slate-400">Pérdida Esperada Anual (2050):</span>
+          <span class="text-slate-400">Expected Annual Loss (2050):</span>
           <span class="font-bold text-red-400">3.74% ($1.2M USD)</span>
         </div>
       </div>
@@ -1360,9 +1566,9 @@ const agentResponses = {
     suggestion: "Evaluación probabilística guardada en el estado. Podemos proceder a compilar la síntesis técnica con el <b>Agente 3</b>."
   },
   3: {
-    agentName: "Agente 3: Generador de Reportes y Síntesis",
+    agentName: "Agent 3: Report Generator (PDF)",
     toolExecuted: "build_pdf_report(template='SEI_Executive_V1', data_state=langGraphState)",
-    llmReasoning: "He consolidado la información climática de Cloud SQL y las métricas de riesgo en un informe técnico estructurado para tomadores de decisiones.",
+    llmReasoning: "I consolitated the climate data and risk evaluation into a structured PDF report. The report includes visualizations, tables, and recommendations for international funding opportunities.",
     cardHTML: `
       <div class="p-2.5 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2 shadow-inner">
         <div class="flex items-center gap-2 overflow-hidden">
@@ -1378,21 +1584,6 @@ const agentResponses = {
       </div>
     `,
     suggestion: "Informe emitido. Transfiriendo la recomendación final al <b>Agente 4</b> para buscar líneas de financiamiento internacional."
-  },
-  4: {
-    agentName: "Agente 4: Búsqueda de Convocatorias (SEI)",
-    toolExecuted: "sei_grant_matcher(region='LATAM', risk_type='Wind_Infrastructure', framework='SEI')",
-    llmReasoning: "Consulté el repositorio de convocatorias del Stockholm Environment Institute (SEI). Se identificaron 2 oportunidades de financiamiento para la resiliencia del activo.",
-    cardHTML: `
-      <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-[10px]">
-        <div class="flex items-center justify-between font-bold text-green-400 border-b border-slate-800 pb-1">
-          <span>Fondo Verde para el Clima (GCF)</span>
-          <span class="bg-green-950 text-green-300 border border-green-500/30 px-1.5 py-0.5 rounded text-[8px]">Abierta</span>
-        </div>
-        <p class="text-slate-300 text-[9.5px]">Línea de adaptación para infraestructura crítica energética vulnerable a ráfagas extremas.</p>
-      </div>
-    `,
-    suggestion: "<b>Workflow End-to-End completado con éxito.</b> Todos los agentes procesaron la solicitud correctamente."
   }
 };
 
@@ -1400,7 +1591,7 @@ const pipelineConfig = {
   1: { title: "Paso 1: Agente de Datos Climáticos", placeholder: "Solicita la extracción de grillas de datos climáticos...", nextStep: 2 },
   2: { title: "Paso 2: Agente de Análisis de Riesgo", placeholder: "Solicita el cálculo de vulnerabilidad y pérdida...", nextStep: 3 },
   3: { title: "Paso 3: Agente Generador de Reportes", placeholder: "Solicita la consolidación del reporte en PDF...", nextStep: 4 },
-  4: { title: "Paso 4: Agente Búsqueda de Convocatorias (SEI)", placeholder: "Solicita el mapeo de fondos internacionales...", nextStep: null }
+  4: { title: "Finish Analysis", placeholder: "Finish", nextStep: null }
 };
 
 function executeCurrentStep(customInput = null) {
@@ -1434,7 +1625,7 @@ function executeCurrentStep(customInput = null) {
       </div>
       <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl rounded-tl-none text-slate-400 text-[11px] flex items-center gap-2">
         <i class="fa-solid fa-terminal text-green-400"></i>
-        <span>Ejecutando API FastAPI / LangGraph (Paso ${langGraphState.currentStep})...</span>
+        <span>Run 2 Agent ${langGraphState.currentStep})...</span>
       </div>
     </div>
   `;
@@ -1531,3 +1722,499 @@ function selectStep(stepNumber) {
 function downloadReportSimulated() {
   alert("Iniciando descarga del Reporte Técnico de Riesgo Climático 2050 (PDF)...");
 }
+
+
+
+
+
+
+
+// ============================================================
+// 1. BASE DE DATOS Y VARIABLES GLOBALES
+// ============================================================
+const argosAssets = [
+  { id: 'argos_cartagena', name: "Cartagena", lat: 10.336597, lon: -75.504035, source: 'Argos' },
+  { id: 'argos_cairo',     name: "Cairo",     lat: 5.865301,  lon: -75.533499, source: 'Argos' },
+  { id: 'argos_nare',      name: "Nare",      lat: 6.218793,  lon: -74.572677, source: 'Argos' },
+  { id: 'argos_rioclaro',  name: "Rioclaro",  lat: 5.867073,  lon: -74.851288, source: 'Argos' },
+  { id: 'argos_sogamoso',  name: "Sogamoso",  lat: 5.762965,  lon: -72.888826, source: 'Argos' },
+  { id: 'argos_tolu',      name: "Tolú",      lat: 9.471250,  lon: -75.466215, source: 'Argos' },
+  { id: 'argos_yumbo',     name: "Yumbo",     lat: 3.562625,  lon: -76.488304, source: 'Argos' }
+];
+
+let currentVariable = "labour-productivity-loss";
+let currentAssetsData = [];
+
+// Caché global de grillas climáticas cargadas desde la API de CIE
+let cachedGrid2030 = [];
+let cachedGrid2050 = [];
+let userPointMarker = null;
+
+// ============================================================
+// 2. EXTRACCIÓN ESPACIAL (Búsqueda del vecino más cercano)
+// ============================================================
+function findNearestGridValue(lat, lon, gridData) {
+  if (!gridData || gridData.length === 0) return 0;
+  
+  let minDistance = Infinity;
+  let nearestValue = 0;
+
+  for (let i = 0; i < gridData.length; i++) {
+    const point = gridData[i];
+    const dist = Math.hypot(point.lat - lat, point.lon - lon);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestValue = point.value;
+    }
+  }
+  return nearestValue;
+}
+
+// ============================================================
+// 3. API CIE CLIMATE ANALYTICS
+// ============================================================
+async function fetchCieData(year, variable) {
+  const url = `https://cie-api-v2.climateanalytics.org/api/geo-data/?iso=COL&var=${variable}&aggregation_spatial=gdp&season=annual&format=csv&scenarios=rcp45&years=${year}`;
+  
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Error en la consulta API CIE: ${response.statusText}`);
+  
+  const text = await response.text();
+  const lines = text.trim().split("\n");
+  
+  const dataLines = lines.slice(10);
+  if (dataLines.length === 0) return [];
+
+  const headers = dataLines[0].split(",").map(h => h.trim());
+  const lons = headers.slice(1).map(Number);
+  
+  const grid = [];
+  for (let i = 1; i < dataLines.length; i++) {
+    const cols = dataLines[i].split(",").map(c => c.trim());
+    const lat = Number(cols[0]);
+    
+    for (let j = 1; j < cols.length; j++) {
+      const val = Number(cols[j]);
+      if (!isNaN(val) && !isNaN(lat) && !isNaN(lons[j - 1])) {
+        grid.push({ lat, lon: lons[j - 1], value: val });
+      }
+    }
+  }
+  return grid;
+}
+
+// ============================================================
+// 4. CARGA INICIAL Y RECALCULO GENERAL
+// ============================================================
+async function cargarDatosPanelRiesgo(variable = "labour-productivity-loss") {
+  try {
+    currentVariable = variable;
+
+    // A. Guardar las grillas en las variables globales de Caché
+    [cachedGrid2030, cachedGrid2050] = await Promise.all([
+      fetchCieData(2030, variable),
+      fetchCieData(2050, variable)
+    ]);
+
+    // B. Procesar puntos base de Argos
+    currentAssetsData = argosAssets.map(asset => {
+      const val2030 = findNearestGridValue(asset.lat, asset.lon, cachedGrid2030);
+      const val2050 = findNearestGridValue(asset.lat, asset.lon, cachedGrid2050);
+      return {
+        ...asset,
+        v2030: val2030,
+        v2050: val2050,
+        diffAbs: val2050 - val2030
+      };
+    });
+
+    // C. Renderizar todo el panel
+    actualizarTodoElPanel(currentAssetsData);
+
+  } catch (error) {
+    console.error("Error cargando datos climáticos CIE:", error);
+  }
+}
+
+// ============================================================
+// 5. FUNCIÓN CENTRALIZADA PARA AGREGAR Y RECALCULAR PUNTOS
+// ============================================================
+function agregarNuevoPuntoYRecalcular(name, lat, lon, source = 'Manual') {
+  // Extraer valores de las grillas guardadas en caché
+  const val2030 = findNearestGridValue(lat, lon, cachedGrid2030);
+  const val2050 = findNearestGridValue(lat, lon, cachedGrid2050);
+
+  const newAsset = {
+    id: 'custom_' + Date.now(),
+    name: name || `Punto-${currentAssetsData.length + 1}`,
+    lat: lat,
+    lon: lon,
+    v2030: val2030,
+    v2050: val2050,
+    diffAbs: val2050 - val2030,
+    source: source
+  };
+
+  // Reemplazar o agregar el punto personalizado en el portafolio activo
+  currentAssetsData = [
+    ...currentAssetsData.filter(a => a.name !== newAsset.name),
+    newAsset
+  ];
+
+  // Dibujar/Centrar en los mapas 2D y 3D
+  if (typeof plotOnMap === 'function') {
+    plotOnMap({ ...newAsset, lng: lon }, true);
+  }
+
+  // Refrescar paneles
+  actualizarTodoElPanel(currentAssetsData);
+}
+
+// ============================================================
+// 6. RENDERIZADO DEL PANEL DERECHO (Soportando parámetros)
+// ============================================================
+function actualizarTodoElPanel(data = currentAssetsData) {
+  currentAssetsData = data;
+  renderPanelMetricas(data);
+  renderPanelRiesgo(data);
+  renderPanelComparacion(data);
+  if (typeof renderActiveLayers === 'function') renderActiveLayers();
+}
+
+// 6.1 PORTFOLIO METRICS
+function renderPanelMetricas(data = currentAssetsData) {
+  if (!data || data.length === 0) return;
+
+  const vals2030 = data.map(a => a.v2030);
+  const vals2050 = data.map(a => a.v2050);
+
+  const avg2030 = vals2030.reduce((a, b) => a + b, 0) / vals2030.length;
+  const avg2050 = vals2050.reduce((a, b) => a + b, 0) / vals2050.length;
+  const avgChange = avg2050 - avg2030;
+
+  const min2030 = Math.min(...vals2030);
+  const max2030 = Math.max(...vals2030);
+  const min2050 = Math.min(...vals2050);
+  const max2050 = Math.max(...vals2050);
+
+  const elP2030 = document.getElementById("metric-p2030");
+  if (elP2030) {
+    elP2030.innerText = `${avg2030.toFixed(2)}%`;
+    if (elP2030.nextElementSibling) {
+      elP2030.nextElementSibling.innerText = `Ran: ${min2030.toFixed(2)}%–${max2030.toFixed(2)}%`;
+    }
+  }
+
+  const elP2050 = document.getElementById("metric-p2050");
+  if (elP2050) {
+    elP2050.innerText = `${avg2050.toFixed(2)}%`;
+    if (elP2050.nextElementSibling) {
+      elP2050.nextElementSibling.innerText = `Ran: ${min2050.toFixed(2)}%–${max2050.toFixed(2)}%`;
+    }
+  }
+
+  const changeEl = document.getElementById("metric-change");
+  if (changeEl) {
+    changeEl.innerText = `${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%`;
+    changeEl.className = `text-xs font-bold font-mono ${avgChange >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+  }
+}
+
+// 6.2 RISK ANALYSIS
+function renderPanelRiesgo(data = currentAssetsData) {
+  if (!data || data.length === 0) return;
+
+  const sorted2050 = [...data].sort((a, b) => b.v2050 - a.v2050);
+  const maxAsset = sorted2050[0];
+  const minAsset = sorted2050[sorted2050.length - 1];
+
+  const maxEl = document.getElementById("plant-max-exposure");
+  if (maxEl) {
+    maxEl.innerText = maxAsset.name;
+    if (maxEl.parentElement && maxEl.parentElement.nextElementSibling) {
+      maxEl.parentElement.nextElementSibling.innerText = `${maxAsset.v2050.toFixed(2)}%`;
+    }
+  }
+
+  const minEl = document.getElementById("plant-resilient");
+  if (minEl) {
+    minEl.innerText = minAsset.name;
+    if (minEl.parentElement && minEl.parentElement.nextElementSibling) {
+      minEl.parentElement.nextElementSibling.innerText = `${minAsset.v2050.toFixed(2)}%`;
+    }
+  }
+
+  const descMap = {
+    "labour-productivity-loss": "Impacto significativo en productividad laboral debido a estrés térmico proyectado hacia 2050.",
+    "HI-danger": "Aumento en días con índice de calor en rango de peligro agudo.",
+    "prAdjust": "Variación porcentual acumulada en precipitación anual promedio.",
+    "rx5day": "Riesgo incremental por eventos de precipitación extrema acumulada en 5 días.",
+    "consecutive_dry_days": "Incremento proyectado en periodos prolongados de días secos consecutivos."
+  };
+  const descEl = document.getElementById("risk-description");
+  if (descEl) {
+    descEl.innerText = descMap[currentVariable] || descMap["labour-productivity-loss"];
+  }
+}
+
+// 6.3 ASSET COMPARISON
+function renderPanelComparacion(data = currentAssetsData) {
+  if (!data || data.length === 0) return;
+
+  const sortOption = document.getElementById("select-sort-assets")?.value || "risk-desc";
+  let sorted = [...data];
+
+  if (sortOption === "risk-desc") sorted.sort((a, b) => b.v2050 - a.v2050);
+  else if (sortOption === "risk-asc") sorted.sort((a, b) => a.v2050 - b.v2050);
+  else if (sortOption === "alpha") sorted.sort((a, b) => a.name.localeCompare(b.name));
+
+  const tbody = document.getElementById("asset-productivity-list");
+  if (tbody) {
+    tbody.innerHTML = sorted.map(asset => {
+      const diffText = `${asset.diffAbs >= 0 ? '+' : ''}${asset.diffAbs.toFixed(2)}%`;
+      const diffColor = asset.diffAbs >= 0 ? "text-rose-400" : "text-emerald-400";
+
+      return `
+        <tr class="hover:bg-slate-800/40 transition-colors">
+          <td class="py-1 px-1.5 font-medium text-slate-200">${asset.name}</td>
+          <td class="py-1 px-1">${asset.v2030.toFixed(2)}%</td>
+          <td class="py-1 px-1 text-amber-400 font-semibold">${asset.v2050.toFixed(2)}%</td>
+          <td class="py-1 px-1 text-right ${diffColor} font-mono font-bold">${diffText}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  renderMiniChart(sorted);
+}
+
+function renderMiniChart(data) {
+  const chartContainer = document.getElementById("chart-asset-productivity");
+  if (!chartContainer) return;
+
+  const maxVal = Math.max(...data.map(d => d.v2050), 0.1);
+
+  chartContainer.innerHTML = `
+    <div class="w-full h-full flex items-end justify-between gap-1 px-1 pt-3 pb-1">
+      ${data.map(d => {
+        const heightPct = Math.max((d.v2050 / maxVal) * 100, 5);
+        return `
+          <div class="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
+            <div class="text-[8px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-3">
+              ${d.v2050.toFixed(1)}%
+            </div>
+            <div class="w-full bg-blue-600/30 group-hover:bg-blue-500/50 rounded-t transition-all relative overflow-hidden" style="height: ${heightPct}%">
+              <div class="w-full bg-amber-400/80 absolute bottom-0 left-0 right-0" style="height: ${d.v2050 ? (d.v2030 / d.v2050) * 100 : 0}%"></div>
+            </div>
+            <span class="text-[7px] text-slate-400 truncate w-full text-center">${d.name.substring(0, 3)}</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+// ============================================================
+// 7. CONEXIÓN CON FORMULARIO "MANUAL DATA" (+ Add Location)
+// ============================================================
+function addManualLocation() {
+  const nameInput = document.getElementById('manual-name');
+  const name = nameInput ? nameInput.value.trim() : '';
+
+  let lat, lng;
+  if (activeCoordType === 'dd') {
+    lat = parseFloat(document.getElementById('manual-lat').value);
+    lng = parseFloat(document.getElementById('manual-lng').value);
+  } else {
+    const latDeg = document.getElementById('lat-deg').value;
+    const latMin = document.getElementById('lat-min').value;
+    const latSec = document.getElementById('lat-sec').value;
+    const latDir = document.getElementById('lat-dir').value;
+
+    const lngDeg = document.getElementById('lng-deg').value;
+    const lngMin = document.getElementById('lng-min').value;
+    const lngSec = document.getElementById('lng-sec').value;
+    const lngDir = document.getElementById('lng-dir').value;
+
+    if (!latDeg || !lngDeg) {
+      alert("Ingresa los grados de latitud y longitud.");
+      return;
+    }
+    lat = dmsToDecimal(latDeg, latMin, latSec, latDir);
+    lng = dmsToDecimal(lngDeg, lngMin, lngSec, lngDir);
+  }
+
+  if (isNaN(lat) || isNaN(lng)) {
+    alert("Por favor ingresa coordenadas válidas.");
+    return;
+  }
+
+  // Invocar la adición y cálculo
+  agregarNuevoPuntoYRecalcular(name || `Punto-${currentAssetsData.length + 1}`, lat, lng, 'Manual');
+
+  // Limpiar campos
+  if (nameInput) nameInput.value = '';
+  document.getElementById('manual-lat').value = '';
+  document.getElementById('manual-lng').value = '';
+}
+
+// ============================================================
+// 8. LISTENERS DE INICIALIZACIÓN
+// ============================================================
+document.addEventListener("DOMContentLoaded", () => {
+  const selectSort = document.getElementById("select-sort-assets");
+  if (selectSort) {
+    selectSort.addEventListener("change", () => renderPanelComparacion());
+  }
+
+  // Carga inicial de datos climáticos
+  cargarDatosPanelRiesgo("labour-productivity-loss");
+});
+
+
+
+
+
+
+
+
+// =========================================================================
+// SINCRONIZACIÓN Y RECALCULO DEL PANEL DERECHO (QUERY PANEL)
+// =========================================================================
+function updateRightPanel() {
+  const activeLocations = userLocations.filter(loc => loc.enabled !== false);
+
+  // 1. Calcular Promedios del Portafolio Activo
+  let avg2030 = 0;
+  let avg2050 = 0;
+
+  if (activeLocations.length > 0) {
+    const sum2030 = activeLocations.reduce((acc, loc) => acc + (loc.risk2030 || 0), 0);
+    const sum2050 = activeLocations.reduce((acc, loc) => acc + (loc.risk2050 || 0), 0);
+    avg2030 = sum2030 / activeLocations.length;
+    avg2050 = sum2050 / activeLocations.length;
+  }
+
+  // Actualizar indicadores numéricos principales si existen en la vista
+  const elAvg2030 = document.getElementById('avg-risk-2030');
+  const elAvg2050 = document.getElementById('avg-risk-2050');
+  const elCount = document.getElementById('active-assets-count');
+
+  if (elAvg2030) elAvg2030.textContent = `${avg2030.toFixed(2)}%`;
+  if (elAvg2050) elAvg2050.textContent = `${avg2050.toFixed(2)}%`;
+  if (elCount) elCount.textContent = `${activeLocations.length} activos`;
+
+  // 2. Renderizar Lista y Barras Comparativas de Activos en el Panel Derecho
+  const containerList = document.getElementById('right-panel-assets-list') || document.getElementById('portfolio-assets-container');
+  if (!containerList) return;
+
+  if (activeLocations.length === 0) {
+    containerList.innerHTML = `<p class="text-[10px] text-slate-500 text-center py-4">No hay activos seleccionados para analizar.</p>`;
+    return;
+  }
+
+  containerList.innerHTML = activeLocations.map(loc => {
+    const width2030 = Math.min((loc.risk2030 / 10) * 100, 100);
+    const width2050 = Math.min((loc.risk2050 / 10) * 100, 100);
+
+    return `
+      <div class="p-2 bg-slate-900/80 border border-slate-800/80 rounded-lg space-y-1 hover:border-slate-700 transition-colors">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-slate-200 truncate">${loc.name}</span>
+          <span class="text-[9px] text-slate-400 font-mono">(${loc.lat.toFixed(2)}, ${loc.lng.toFixed(2)})</span>
+        </div>
+        <div class="space-y-1 pt-1">
+          <div class="flex items-center justify-between text-[9.5px]">
+            <span class="text-slate-400">2030: <strong class="text-amber-400">${loc.risk2030.toFixed(2)}%</strong></span>
+            <span class="text-slate-400">2050: <strong class="text-red-400">${loc.risk2050.toFixed(2)}%</strong></span>
+          </div>
+          <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden flex">
+            <div class="bg-amber-500 h-full rounded-l transition-all duration-500" style="width: ${width2030}%" title="2030: ${loc.risk2030}%"></div>
+            <div class="bg-red-500 h-full rounded-r transition-all duration-500" style="width: ${width2050}%" title="2050: ${loc.risk2050}%"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// 1. EMBUDO ÚNICO CENTRALIZADO PARA CUALQUIER PUNTO
+// ============================================================
+function agregarPuntoAlSistema(name, lat, lon, source = 'Sistema', silent = false) {
+  // Parsing seguro de coordenadas
+  const latNum = parseFloat(lat);
+  const lonNum = parseFloat(lon);
+
+  if (isNaN(latNum) || isNaN(lonNum)) return null;
+
+  // Extraer riesgo climático real desde las grillas globales cargadas de la API CIE
+  const val2030 = typeof findNearestGridValue === 'function' ? findNearestGridValue(latNum, lonNum, cachedGrid2030) : 0;
+  const val2050 = typeof findNearestGridValue === 'function' ? findNearestGridValue(latNum, lonNum, cachedGrid2050) : 0;
+
+  const newAsset = {
+    id: 'loc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    name: name || `Punto-${currentAssetsData.length + 1}`,
+    lat: latNum,
+    lng: lonNum,
+    lon: lonNum,
+    v2030: val2030,
+    v2050: val2050,
+    risk2030: val2030, // Compatibilidad con vistas anteriores
+    risk2050: val2050,
+    diffAbs: val2050 - val2030,
+    source: source,
+    enabled: true
+  };
+
+  // Mantener sincronizados los arreglos globales
+  currentAssetsData.push(newAsset);
+  if (typeof userLocations !== 'undefined' && userLocations !== currentAssetsData) {
+    userLocations.push(newAsset);
+  }
+
+  // Graficar en visores 2D (Leaflet) / 3D (Cesium)
+  if (typeof plotOnMap === 'function') {
+    plotOnMap(newAsset, !silent);
+  }
+
+  // Refrescar UI (si no es carga masiva en lote)
+  if (!silent) {
+    if (typeof renderActiveLayers === 'function') renderActiveLayers();
+    if (typeof actualizarTodoElPanel === 'function') {
+      actualizarTodoElPanel(currentAssetsData);
+    } else if (typeof updateRightPanel === 'function') {
+      updateRightPanel();
+    }
+  }
+
+  return newAsset;
+}
+
+
+// Refrescar masivo para batch imports
+function finalizarCargaMasiva() {
+  if (typeof renderActiveLayers === 'function') renderActiveLayers();
+  if (typeof actualizarTodoElPanel === 'function') {
+    actualizarTodoElPanel(currentAssetsData);
+  } else if (typeof updateRightPanel === 'function') {
+    updateRightPanel();
+  }
+}
+
+
+
+
+
+

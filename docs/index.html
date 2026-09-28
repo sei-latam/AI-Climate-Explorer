@@ -502,7 +502,7 @@
       <div id="chat-conversation-body" class="p-3.5 space-y-3.5 max-h-64 overflow-y-auto custom-scrollbar bg-slate-950/60 text-xs">
         <div class="flex justify-end">
           <div class="bg-green-600/20 border border-green-500/30 px-3 py-2 rounded-2xl rounded-tr-none max-w-[85%] text-slate-200 text-[11px]">
-            Evaluate risk from extreme wind speed increases for the Sogamoso hydroelectric plant towards 2050.
+            Evaluate risk in Sogamoso 2050.
           </div>
         </div>
         <div class="flex gap-2.5">
@@ -514,23 +514,23 @@
               <span class="text-[10px] font-bold text-green-400 flex items-center gap-1">
                 <i class="fa-solid fa-microchip"></i> Agent 1: Climate Ingestion & Filtering
               </span>
-              <span class="text-[9px] text-slate-500 font-mono">FastAPI HTTP 200 OK</span>
+              <span class="text-[9px] text-slate-500 font-mono">Query the LLM</span>
             </div>
             <div class="flex items-center gap-2 p-1.5 bg-slate-950/80 border border-slate-800 rounded-lg text-[10px] text-slate-400 font-mono overflow-x-auto">
               <i class="fa-solid fa-terminal text-green-400 shrink-0"></i>
-              <span class="truncate">ToolExecuted: <span class="text-slate-200">sql_cloud_query(table='extreme_wind_5days', asset='Sogamoso')</span></span>
+              <span class="truncate">Prompt Executed: <span class="text-slate-200">Ollama3('Evaluate risk in Sogamoso 2050')</span></span>
             </div>
               <p>
-                Queried the PostgreSQL/Cloud SQL database via FastAPI. Extracted extreme wind rasters under scenario SSP5-8.5 for the Sogamoso region.
+                Ollama3 analyzed the prompt. Extracted information about the RCP 4.5 scenario for the Sogamoso region.
               </p>
             <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-[10px] font-mono">
               <div class="flex justify-between border-b border-slate-800/80 pb-1">
-                <span class="text-slate-400">Queried SQL Table:</span>
-                <span class="text-green-400 font-bold">climate_db.extreme_wind</span>
+                <span class="text-slate-400">Query:</span>
+                <span class="text-green-400 font-bold">climate_risk_assessment</span>
               </div>
               <div class="flex justify-between border-b border-slate-800/80 pb-1">
-                <span class="text-slate-400">Detected Anomaly (2050):</span>
-                <span class="text-amber-400 font-bold">+14.2% Gust Speed</span>
+                <span class="text-slate-400">RCP 4.5 (2050):</span>
+                <span class="text-amber-400 font-bold">=+0.72%</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-400">Vector Embeddings:</span>
@@ -538,7 +538,7 @@
               </div>
             </div>
               <p class="text-slate-400">
-                Grid data validated. Press the button below to transfer context to <b>Agent 2 (Risk Analysis)</b>.
+                Data validated. Press the button below to transfer context to <b>Agent 2 (Risk Analysis)</b>.
               </p>
             <div class="pt-1">
               <button onclick="triggerNextAgentStep(2)" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-md flex items-center gap-1.5">
