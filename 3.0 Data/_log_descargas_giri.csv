@@ -1,0 +1,9 @@
+fuente,escenario,return_period,estado,archivo
+GIRI,rcp26,25,ok,flood_giri_colombia/rcp26/flood_rcp26_RP25.tif
+GIRI,rcp26,50,ok,flood_giri_colombia/rcp26/flood_rcp26_RP50.tif
+GIRI,rcp26,100,ok,flood_giri_colombia/rcp26/flood_rcp26_RP100.tif
+GIRI,rcp26,500,ok,flood_giri_colombia/rcp26/flood_rcp26_RP500.tif
+GIRI,rcp85,25,ok,flood_giri_colombia/rcp85/flood_rcp85_RP25.tif
+GIRI,rcp85,50,ok,flood_giri_colombia/rcp85/flood_rcp85_RP50.tif
+GIRI,rcp85,100,ok,flood_giri_colombia/rcp85/flood_rcp85_RP100.tif
+GIRI,rcp85,500,ok,flood_giri_colombia/rcp85/flood_rcp85_RP500.tif

@@ -1,0 +1,14 @@
+codigo,nombre_completo,descripcion,tipo
+rx1day,Precipitacion Maxima Diaria Anual,Precipitacion diaria mas alta registrada en un ano,Agudo
+rx5day,Precipitacion Maxima Acumulada en 5 Dias,Maxima precipitacion acumulada en cualquier ventana de 5 dias consecutivos del ano,Agudo
+TXx,Temperatura Maxima Diaria Anual,Temperatura maxima diaria mas alta del ano,Agudo
+HI-danger,Dias con Riesgo de Calor Peligroso,"Dias por ano en que el indice de calor supera 40C (umbral ""danger"" de NOAA)",Agudo
+consecutive_dry_days,Dias Secos Consecutivos,Racha mas larga de dias con precipitacion bajo 1mm en el ano,Agudo
+fwixd,Dias con Clima de Incendio Extremo,Dias por ano que superan el percentil 95 historico del Indice de Clima de Incendio (FWI),Agudo
+tasAdjust,Temperatura Media del Aire,Temperatura media anual a 2m sobre el suelo,Cronico
+prAdjust,Precipitacion,Precipitacion media diaria del ano,Cronico
+wsi,Indice de Estres Hidrico,Razon entre demanda humana de agua (domestica industrial riego) y disponibilidad de agua superficial renovable,Cronico
+spei_gamma_12,Indice Estandarizado de Precipitacion y Evapotranspiracion (SPEI),Indicador de sequia meteorologica que combina precipitacion y evapotranspiracion potencial,Cronico
+labour-productivity-loss,Perdida de Productividad Laboral por Estres Termico,Porcentaje de reduccion en la eficiencia del trabajo fisico por calor y humedad extremos,Cronico
+dis,Caudal de Rio,Cambio relativo en el caudal de rio respecto al periodo de referencia,Cronico
+flood_giri,Profundidad de Inundacion Fluvial (GIRI),Profundidad de agua en metros esperada para un evento de inundacion con periodo de retorno de n anos bajo un escenario RCP dado. Modelo hidraulico (ecuacion de Manning) sobre topografia MERIT Hydro,Agudo
