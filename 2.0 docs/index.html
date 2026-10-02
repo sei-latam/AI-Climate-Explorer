@@ -122,6 +122,69 @@
 
   <div id="navigation-panel-body" class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
 
+<!-- CAPA DE DATOS CLIMÁTICOS (VARIABLE / ESCENARIO / GRILLA) -->
+<div class="bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden transition-all">
+  <button onclick="toggleWidget('body-panel-clima', 'icon-toggle-clima')" class="w-full bg-slate-900/80 p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors group">
+    <div class="flex items-center gap-2">
+      <div class="w-5 h-5 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+        <i class="fa-solid fa-temperature-half text-[10px]"></i>
+      </div>
+      <span class="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">Climate Data Layer</span>
+    </div>
+    <i id="icon-toggle-clima" class="fa-solid fa-chevron-down text-[10px] inline-block text-slate-400 group-hover:text-blue-400 transition-transform duration-200"></i>
+  </button>
+
+  <div id="body-panel-clima" class="p-2 space-y-2">
+    <div>
+      <label class="block text-[9px] text-slate-400 mb-0.5">Data source</label>
+      <select id="climate-source" class="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-blue-500"></select>
+    </div>
+
+    <div>
+      <label class="block text-[9px] text-slate-400 mb-0.5">Variable</label>
+      <select id="climate-variable" class="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-blue-500"></select>
+      <p id="climate-var-desc" class="text-[9px] text-slate-500 leading-snug mt-1 px-0.5"></p>
+    </div>
+
+    <!-- Opciones específicas de la API CIE en vivo -->
+    <div id="climate-cie-options" class="hidden">
+      <label class="block text-[9px] text-slate-400 mb-0.5">RCP scenario</label>
+      <select id="climate-rcp" class="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-blue-500">
+        <option value="rcp26">RCP 2.6</option>
+        <option value="rcp45" selected>RCP 4.5</option>
+        <option value="rcp85">RCP 8.5</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-[9px] text-slate-400 mb-0.5">Scenario shown on map</label>
+      <div id="climate-scenario-buttons" class="flex bg-slate-900 p-0.5 rounded border border-slate-800 text-[10px]"></div>
+    </div>
+
+    <div class="pt-1.5 border-t border-slate-800/60 space-y-1.5">
+      <div class="flex items-center justify-between text-[10px] text-slate-300">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="climate-grid-visible" checked class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0"> Show grid
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="climate-grid-borders" checked class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0"> Cell borders
+        </label>
+      </div>
+      <div class="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+        <span>Grid opacity</span>
+        <span id="climate-grid-opacity-val" class="text-blue-400 font-mono">70%</span>
+      </div>
+      <input type="range" id="climate-grid-opacity" min="10" max="100" value="70" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+    </div>
+
+    <div id="climate-status" class="text-[9px] text-slate-400 px-0.5">Waiting for data…</div>
+
+    <button onclick="zoomToClimateLayer()" class="w-full bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 text-slate-300 hover:text-white text-[10px] font-bold py-1.5 rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+      <i class="fa-solid fa-expand text-[9px]"></i> Zoom to layer
+    </button>
+  </div>
+</div>
+
 <!-- ENTRADA MANUAL DE COORDENADAS -->
 <div class="bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden transition-all">
   <button onclick="toggleWidget('body-panel-manual', 'icon-toggle-manual')" class="w-full bg-slate-900/80 p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors group">
@@ -343,21 +406,22 @@
       </button>
 
       <div id="body-panel-metricas" class="p-2 space-y-2">
+        <p id="portfolio-variable-label" class="text-[9px] text-blue-300 font-semibold px-0.5 truncate">—</p>
         <div class="grid grid-cols-2 gap-1.5">
           <div class="bg-slate-900/60 border border-slate-800/80 p-2 rounded-lg flex flex-col justify-between">
-            <span class="text-[9px] font-semibold text-slate-400 leading-tight">Avg. Loss 2030</span>
-            <span class="text-sm font-bold text-slate-100 my-0.5" id="metric-p2030">0.72%</span>
+            <span id="metric-label-a" class="text-[9px] font-semibold text-slate-400 leading-tight">Avg. Loss 2030</span>
+            <span class="text-sm font-bold text-slate-100 my-0.5" id="metric-p2030">—</span>
             <span class="text-[8px] text-slate-400 font-mono">Ran: 0.31%–1.25%</span>
           </div>
           <div class="bg-slate-900/60 border border-slate-800/80 p-2 rounded-lg flex flex-col justify-between">
-            <span class="text-[9px] font-semibold text-slate-400 leading-tight">Avg. Loss 2050</span>
-            <span class="text-sm font-bold text-amber-400 my-0.5" id="metric-p2050">1.93%</span>
+            <span id="metric-label-b" class="text-[9px] font-semibold text-slate-400 leading-tight">Avg. Loss 2050</span>
+            <span class="text-sm font-bold text-amber-400 my-0.5" id="metric-p2050">—</span>
             <span class="text-[8px] text-slate-400 font-mono">Ran: 0.72%–3.74%</span>
           </div>
         </div>
         <div class="bg-slate-900/60 border border-slate-800/80 p-2 rounded-lg flex items-center justify-between">
-          <span class="text-[10px] text-slate-300 font-medium">Avg. Change (2030 → 2050)</span>
-          <span class="text-xs font-bold text-rose-400 font-mono" id="metric-change">+1.21%</span>
+          <span id="metric-label-change" class="text-[10px] text-slate-300 font-medium">Avg. Change (2030 → 2050)</span>
+          <span class="text-xs font-bold text-rose-400 font-mono" id="metric-change">—</span>
         </div>
       </div>
     </div>
@@ -378,17 +442,17 @@
         <div class="space-y-1.5">
           <div class="p-2 bg-slate-900/60 border border-rose-500/20 rounded-lg flex items-center justify-between">
             <div class="flex flex-col">
-              <span class="text-[9px] font-bold text-rose-400 uppercase tracking-wider">Highest Exposure (2050)</span>
+              <span id="risk-label-max" class="text-[9px] font-bold text-rose-400 uppercase tracking-wider">Highest Exposure (2050)</span>
               <span class="text-xs font-bold text-white" id="plant-max-exposure">Nare</span>
             </div>
-            <span class="text-xs font-mono font-bold text-rose-400">3.74%</span>
+            <span id="risk-max-value" class="text-xs font-mono font-bold text-rose-400">—</span>
           </div>
           <div class="p-2 bg-slate-900/60 border border-emerald-500/20 rounded-lg flex items-center justify-between">
             <div class="flex flex-col">
-              <span class="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Most Resilient (2050)</span>
+              <span id="risk-label-min" class="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Most Resilient (2050)</span>
               <span class="text-xs font-bold text-white" id="plant-resilient">Sogamoso</span>
             </div>
-            <span class="text-xs font-mono font-bold text-emerald-400">0.72%</span>
+            <span id="risk-min-value" class="text-xs font-mono font-bold text-emerald-400">—</span>
           </div>
         </div>
         <p class="text-[9px] text-slate-400 leading-relaxed p-1 border-t border-slate-800/60" id="risk-description">
@@ -428,24 +492,13 @@
             <thead class="text-[9px] uppercase bg-slate-900/90 text-slate-400 sticky top-0">
               <tr>
                 <th scope="col" class="py-1 px-1.5 rounded-l">Asset</th>
-                <th scope="col" class="py-1 px-1">2030</th>
-                <th scope="col" class="py-1 px-1">2050</th>
-                <th scope="col" class="py-1 px-1 text-right rounded-r">Δ%</th>
+                <th id="th-col-a" scope="col" class="py-1 px-1">2030</th>
+                <th id="th-col-b" scope="col" class="py-1 px-1">2050</th>
+                <th id="th-col-diff" scope="col" class="py-1 px-1 text-right rounded-r">Δ</th>
               </tr>
             </thead>
             <tbody id="asset-productivity-list" class="divide-y divide-slate-800/50">
-              <tr class="hover:bg-slate-800/40 transition-colors">
-                <td class="py-1 px-1.5 font-medium text-slate-200">Nare</td>
-                <td class="py-1 px-1">1.25%</td>
-                <td class="py-1 px-1 text-amber-400 font-semibold">3.74%</td>
-                <td class="py-1 px-1 text-right text-rose-400 font-mono font-bold">+2.49%</td>
-              </tr>
-              <tr class="hover:bg-slate-800/40 transition-colors">
-                <td class="py-1 px-1.5 font-medium text-slate-200">Sogamoso</td>
-                <td class="py-1 px-1">0.31%</td>
-                <td class="py-1 px-1 text-emerald-400 font-semibold">0.72%</td>
-                <td class="py-1 px-1 text-right text-amber-400 font-mono font-bold">+0.41%</td>
-              </tr>
+              <tr><td colspan="4" class="py-2 text-center text-slate-500">Loading…</td></tr>
             </tbody>
           </table>
         </div>
