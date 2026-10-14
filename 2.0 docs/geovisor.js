@@ -20,24 +20,25 @@ const GIRI_DATA_BASE = `${GITHUB_DATA_BASE}/giri`;
 const CIE_API_BASE = 'https://cie-api-v2.climateanalytics.org/api/geo-data/';
 
 /**
- * Metadatos de variables (basado en diccionario_variables.csv).
- * worse: 'high' => valores altos = más riesgo ; 'low' => valores bajos = más riesgo.
- * Las unidades corresponden a los productos CIE por nivel de calentamiento; verifícalas con los metadatos de CIE.
+ * Metadatos de variables (diccionario_variables.csv + /api/meta/ de CIE v2).
+ * Los valores del repo son CAMBIOS respecto al período de referencia CIE 1995–2014.
+ * worse: 'high' => valores altos = más amenaza ; 'low' => valores bajos = más amenaza.
+ * relative: true => el cambio es relativo (%) ; si no, es una diferencia absoluta en la unidad indicada.
  */
+const REFERENCE_PERIOD = '1995–2014';
 const VARIABLES = {
-  'HI-danger':                { name: 'Dangerous heat days (HI > 40°C)', type: 'Acute',   unit: 'days/yr', worse: 'high', desc: 'Days per year when the heat index exceeds 40°C (NOAA "danger" threshold).' },
-  'TXx':                      { name: 'Annual max. daily temperature',  type: 'Acute',   unit: '°C',      worse: 'high', desc: 'Highest daily maximum temperature of the year.' },
-  'rx1day':                   { name: 'Max. 1-day precipitation',       type: 'Acute',   unit: '%',       worse: 'high', desc: 'Highest daily precipitation in a year.' },
-  'rx5day':                   { name: 'Max. 5-day precipitation',       type: 'Acute',   unit: '%',       worse: 'high', desc: 'Maximum precipitation accumulated over any 5 consecutive days.' },
-  'consecutive_dry_days':     { name: 'Consecutive dry days',           type: 'Acute',   unit: 'days',    worse: 'high', desc: 'Longest run of days with precipitation below 1 mm in the year.' },
-  'fwixd':                    { name: 'Extreme fire-weather days',      type: 'Acute',   unit: 'days/yr', worse: 'high', desc: 'Days per year above the historical 95th percentile of the Fire Weather Index.' },
-  'tasAdjust':                { name: 'Mean air temperature',           type: 'Chronic', unit: '°C',      worse: 'high', desc: 'Annual mean temperature at 2 m.' },
-  'prAdjust':                 { name: 'Precipitation',                  type: 'Chronic', unit: 'mm/day',  worse: 'low',  desc: 'Mean daily precipitation of the year (decrease = water-scarcity risk).' },
-  'wsi':                      { name: 'Water stress index',             type: 'Chronic', unit: '',        worse: 'high', desc: 'Ratio of human water demand to renewable surface water availability.' },
-  'spei_gamma_12':            { name: 'SPEI-12 drought index',          type: 'Chronic', unit: '',        worse: 'low',  desc: 'Meteorological drought indicator combining precipitation and potential evapotranspiration (negative = drier).' },
-  'labour-productivity-loss': { name: 'Labour productivity loss',       type: 'Chronic', unit: '%',       worse: 'high', desc: 'Reduction in physical work efficiency due to heat and humidity stress.' },
-  'dis':                      { name: 'River discharge',                type: 'Chronic', unit: '%',       worse: 'low',  desc: 'Relative change in river discharge versus the reference period.' },
-  'flood_giri':               { name: 'Riverine flood depth (GIRI)',    type: 'Acute',   unit: '',        worse: 'high', desc: 'Expected flood water depth for a given return period and RCP (MERIT Hydro, Manning).' }
+  'HI-danger':                { name: 'Dangerous heat days (HI > 40°C)', short: 'HI40', type: 'Acute',   unit: 'days/yr', worse: 'high', desc: 'Days per year when the heat index exceeds 40°C (NOAA "danger" threshold).' },
+  'TXx':                      { name: 'Annual max. daily temperature',  short: 'TXx',  type: 'Acute',   unit: '°C',      worse: 'high', desc: 'Highest daily maximum temperature of the year.' },
+  'rx1day':                   { name: 'Max. 1-day precipitation',       short: 'Rx1',  type: 'Acute',   unit: '%',       worse: 'high', relative: true, desc: 'Highest daily precipitation in a year (relative change).' },
+  'rx5day':                   { name: 'Max. 5-day precipitation',       short: 'Rx5',  type: 'Acute',   unit: '%',       worse: 'high', relative: true, desc: 'Maximum precipitation accumulated over any 5 consecutive days (relative change).' },
+  'consecutive_dry_days':     { name: 'Consecutive dry days',           short: 'CDD',  type: 'Acute',   unit: 'days',    worse: 'high', desc: 'Longest run of days with precipitation below 1 mm in the year.' },
+  'fwixd':                    { name: 'Extreme fire-weather days',      short: 'FWI',  type: 'Acute',   unit: 'days/yr', worse: 'high', desc: 'Days per year above the historical 95th percentile of the Fire Weather Index.' },
+  'tasAdjust':                { name: 'Mean air temperature',           short: 'Tas',  type: 'Chronic', unit: '°C',      worse: 'high', desc: 'Annual mean air temperature at 2 m.' },
+  'prAdjust':                 { name: 'Precipitation',                  short: 'Pr',   type: 'Chronic', unit: 'mm/day',  worse: 'low',  desc: 'Mean daily precipitation of the year (a decrease signals water-scarcity pressure).' },
+  'wsi':                      { name: 'Water stress index',             short: 'WSI',  type: 'Chronic', unit: '',        worse: 'high', desc: 'Ratio of human water demand to renewable surface water availability.' },
+  'spei_gamma_12':            { name: 'SPEI-12 drought index',          short: 'SPEI', type: 'Chronic', unit: '',        worse: 'low',  desc: 'Meteorological drought indicator combining precipitation and potential evapotranspiration (negative = drier).' },
+  'labour-productivity-loss': { name: 'Labour productivity loss',       short: 'LPL',  type: 'Chronic', unit: '%',       worse: 'high', desc: 'Decrease in physical work efficiency due to heat and humidity stress (percentage points).' },
+  'dis':                      { name: 'River discharge',                short: 'Dis',  type: 'Chronic', unit: '%',       worse: 'low',  relative: true, desc: 'Relative change in mean river discharge.' }
 };
 
 /**
@@ -205,6 +206,13 @@ const BASEMAPS_3D = {
 // 4. INICIALIZACIÓN
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  const shared = readShareState();
+  if (shared) Object.assign(state, { source: shared.source, variable: shared.variable, display: shared.display, cieRcp: shared.cieRcp });
+  const rcpSel = document.getElementById('climate-rcp');
+  if (rcpSel) rcpSel.value = state.cieRcp;
+
+  initTheme();
+  initLanguage(shared?.lang);
   initClock();
   initLeaflet();
   initOpacitySlider();
@@ -216,8 +224,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await switchView('3d');
 
-  DEFAULT_ASSETS.forEach(a => agregarPuntoAlSistema(a.name, a.lat, a.lng, 'Argos', { silent: true }));
+  if (shared && shared.assets.length) {
+    shared.assets.forEach(([n, lat, lng]) => agregarPuntoAlSistema(String(n).slice(0, 80), lat, lng, 'Shared link', { silent: true }));
+  } else {
+    DEFAULT_ASSETS.forEach(a => agregarPuntoAlSistema(a.name, a.lat, a.lng, 'Argos', { silent: true }));
+  }
   finalizarCargaMasiva();
+  if (shared) { abrirPanelConsultas(); setTimeout(zoomToAllAssets, 800); }
 
   loadClimateData();
 });
@@ -336,9 +349,9 @@ function renderizarTarjetasMapasBase() {
       isActive ? 'border-2 border-blue-500 bg-blue-950/30 active-basemap' : 'border border-slate-800 bg-slate-900/90 hover:border-slate-700 hover:bg-slate-800/50'}`;
     btn.innerHTML = `
       <div class="w-full h-14 rounded-lg overflow-hidden border border-slate-700/60 mb-1.5 relative">
-        <img src="${item.thumb}" alt="${item.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <img src="${item.thumb}" alt="${escapeHtml(t(item.name))}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
       </div>
-      <span class="text-[10px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}">${item.name}</span>`;
+      <span class="text-[10px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}">${escapeHtml(t(item.name))}</span>`;
     container.appendChild(btn);
   });
 }
@@ -504,7 +517,7 @@ function buscarSugerencias() {
     box.innerHTML = results.map((r, i) => `
       <div class="flex items-center justify-between gap-2 px-3 py-2 hover:bg-slate-800/70">
         <button class="text-left truncate flex-1 cursor-pointer" onclick="seleccionarSugerencia(${i}, false)">${escapeHtml(r.display_name)}</button>
-        <button title="Add as asset" class="text-blue-400 hover:text-blue-300 shrink-0 cursor-pointer" onclick="seleccionarSugerencia(${i}, true)"><i class="fa-solid fa-plus text-[10px]"></i></button>
+        <button title="${t('Add as asset')}" class="text-blue-400 hover:text-blue-300 shrink-0 cursor-pointer" onclick="seleccionarSugerencia(${i}, true)"><i class="fa-solid fa-plus text-[10px]"></i></button>
       </div>`).join('');
     box.dataset.results = JSON.stringify(results.map(r => ({ name: r.display_name, lat: +r.lat, lng: +r.lon })));
     box.classList.remove('hidden');
@@ -536,7 +549,7 @@ async function ejecutarBusquedaDirecta() {
   const results = await geocodificar(q);
   document.getElementById('searchSuggestions')?.classList.add('hidden');
   if (results[0]) volarA(+results[0].lat, +results[0].lon);
-  else alert('No se encontraron resultados para la búsqueda.');
+  else alert(t('No results found for this search.'));
 }
 
 // =========================================================================
@@ -565,7 +578,7 @@ function parseLongCSV(text) {
   const iLat = headers.findIndex(h => h === 'lat' || h === 'latitude' || h === 'y');
   const iLon = headers.findIndex(h => h === 'lon' || h === 'lng' || h === 'longitude' || h === 'x');
   const iVal = headers.findIndex(h => h === 'value' || h === 'valor');
-  if (iLat < 0 || iLon < 0 || iVal < 0) throw new Error('El CSV no tiene columnas lat, lon, value.');
+  if (iLat < 0 || iLon < 0 || iVal < 0) throw new Error(t('The CSV has no lat, lon, value columns.'));
 
   const points = [];
   for (let i = 1; i < lines.length; i++) {
@@ -604,7 +617,7 @@ async function fetchPoints(url, parser) {
     const p = fetch(url).then(async res => {
       if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
       const pts = parser(await res.text());
-      if (!pts.length) throw new Error(`Sin datos válidos en ${url}`);
+      if (!pts.length) throw new Error(t('No valid data in {url}', { url }));
       return pts;
     });
     p.catch(() => csvCache.delete(url)); // permitir reintento
@@ -684,7 +697,11 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 function getSource() { return SOURCES[state.source]; }
 function getScenarios() { return getSource().scenarios(); }
-function getVarMeta(v = state.variable) { return VARIABLES[v] || { name: v, unit: '', worse: 'high', desc: '' }; }
+function getVarMeta(v = state.variable) {
+  const m = VARIABLES[v];
+  if (!m) return { name: v, unit: '', worse: 'high', desc: '' };
+  return { ...m, name: t(m.name), desc: t(m.desc), unit: m.unit ? t(m.unit) : '' };
+}
 
 /** Carga los dos escenarios de la variable activa y refresca todo */
 async function loadClimateData() {
@@ -694,23 +711,19 @@ async function loadClimateData() {
   const meta = getVarMeta();
 
   state.loading = true;
-  setClimateStatus(`<i class="fa-solid fa-spinner animate-spin"></i> Loading ${meta.name} (${sc.A.label} / ${sc.B.label})…`, 'info');
+  setClimateStatus(() => `<i class="fa-solid fa-spinner animate-spin"></i> ${t('Loading {name} ({a} / {b})…', { name: getVarMeta().name, a: sc.A.label, b: sc.B.label })}`, 'info');
 
   try {
-    const [ptsA, ptsB] = await Promise.all([
-      fetchPoints(src.url(state.variable, sc.A), src.parse),
-      fetchPoints(src.url(state.variable, sc.B), src.parse)
-    ]);
+    const entry = await getHazardEntry(state.variable);
     if (token !== state.loadToken) return; // llegó una petición más reciente
 
-    state.grids.A = buildGrid(ptsA);
-    state.grids.B = buildGrid(ptsB);
-    state.grids.DIFF = diffGrid(state.grids.A, state.grids.B);
+    state.grids = { A: entry.A, B: entry.B, DIFF: entry.DIFF };
+    const ptsA = entry.A.points, ptsB = entry.B.points;
 
     recalcularActivos();
     renderClimateLayer();
     renderPortfolio();
-    setClimateStatus(`<i class="fa-solid fa-circle-check"></i> ${ptsA.length} / ${ptsB.length} grid cells · res ${state.grids.A.resLat}°`, 'ok');
+    setClimateStatus(() => `<i class="fa-solid fa-circle-check"></i> ${t('{a} / {b} grid cells · res {res}°', { a: ptsA.length, b: ptsB.length, res: state.grids.A?.resLat })}`, 'ok');
   } catch (err) {
     if (token !== state.loadToken) return;
     console.error(err);
@@ -721,7 +734,7 @@ async function loadClimateData() {
     const help = src.missingHelp || (state.source === 'cie_api'
       ? 'The live CIE API may block browser requests (CORS). Use the GitHub source or a proxy.'
       : 'Check your connection or the file name in the repository.');
-    setClimateStatus(`<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(err.message)}<br><span class="text-slate-400">${help}</span>`, 'error');
+    setClimateStatus(() => `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(err.message)}<br><span class="text-slate-400">${t(help)}</span>`, 'error');
   } finally {
     if (token === state.loadToken) state.loading = false;
   }
@@ -916,7 +929,7 @@ function renderLegend() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'climate-legend';
-    el.className = 'absolute bottom-28 left-[310px] z-30 w-60 bg-[#0f172a]/85 backdrop-blur-md border border-slate-800/90 rounded-xl shadow-2xl p-2.5 text-slate-200';
+    el.className = 'absolute top-20 left-[310px] z-30 w-60 bg-[#0f172a]/85 backdrop-blur-md border border-slate-800/90 rounded-xl shadow-2xl p-2.5 text-slate-200';
     document.body.appendChild(el);
   }
   const s = state.scale;
@@ -927,7 +940,7 @@ function renderLegend() {
   const sc = getScenarios();
   const gradient = `linear-gradient(to right, ${s.ramp.join(',')})`;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => s.min + (s.max - s.min) * t);
-  const unit = meta.unit ? ` (${meta.unit})` : '';
+  const unit = meta.unit ? ` (${state.source === 'github' ? 'Δ ' : ''}${meta.unit})` : (state.source === 'github' ? ' (Δ)' : '');
   const scenarioNote = state.display === 'DIFF' ? `${sc.B.note} vs ${sc.A.note}` : sc[state.display].note;
 
   el.innerHTML = `
@@ -936,17 +949,20 @@ function renderLegend() {
         <div class="text-[10px] font-bold text-white leading-tight truncate" title="${escapeHtml(meta.name)}">${escapeHtml(meta.name)}${unit}</div>
         <div class="text-[9px] text-slate-400">${escapeHtml(displayLabel())} · ${escapeHtml(scenarioNote)}</div>
       </div>
-      <span class="text-[8px] px-1.5 py-0.5 rounded border ${meta.type === 'Acute' ? 'border-rose-500/40 text-rose-300' : 'border-amber-500/40 text-amber-300'}">${meta.type || ''}</span>
+      <span class="text-[8px] px-1.5 py-0.5 rounded border ${meta.type === 'Acute' ? 'border-rose-500/40 text-rose-300' : 'border-amber-500/40 text-amber-300'}">${t(meta.type || '')}</span>
     </div>
     <div class="h-2.5 rounded-sm border border-slate-700" style="background:${gradient}"></div>
     <div class="flex justify-between text-[8px] font-mono text-slate-300 mt-1">
       ${ticks.map((t, i) => `<span>${i === 0 ? '≤' : i === 4 ? '≥' : ''}${fmtNum(t)}</span>`).join('')}
     </div>
     <div class="flex justify-between text-[8px] text-slate-500 mt-1">
-      <span>${meta.worse === 'high' ? 'lower risk' : 'higher risk'}</span>
-      <span>${meta.worse === 'high' ? 'higher risk' : 'lower risk'}</span>
+      <span>${t(meta.worse === 'high' ? 'less hazard' : 'more hazard')}</span>
+      <span>${t(meta.worse === 'high' ? 'more hazard' : 'less hazard')}</span>
     </div>
-    <div class="text-[8px] text-slate-500 mt-1 border-t border-slate-800 pt-1">Source: ${escapeHtml(getSource().label)} · ${state.grids[state.display]?.points.length || 0} cells</div>`;
+    <div class="text-[8px] text-slate-500 mt-1 border-t border-slate-800 pt-1 flex items-center justify-between gap-1">
+      <span>${state.source === 'github' ? `${t('Change vs. {p}', { p: REFERENCE_PERIOD })} · ` : ''}CIE v2 · ${t('{n} cells', { n: state.grids[state.display]?.points.length || 0 })} · 0.5°</span>
+      <button onclick="openAboutModal()" title="${t('About the data')}" class="text-blue-400 hover:text-blue-300 cursor-pointer"><i class="fa-solid fa-circle-info"></i></button>
+    </div>`;
 }
 
 // --- Chip flotante con el valor de la celda bajo el cursor ---
@@ -991,7 +1007,7 @@ function cellPopupHTML(lat, lon) {
         <p class="m-0"><b>${sc.A.label}:</b> ${fmtVal(a?.value, meta)}</p>
         <p class="m-0"><b>${sc.B.label}:</b> ${fmtVal(b?.value, meta)}</p>
         <p class="m-0"><b>Δ:</b> <span style="color:${d != null && isWorse(d, meta) ? '#dc2626' : '#059669'}">${fmtVal(d, meta, true)}</span></p>
-        <p class="m-0 text-[10px] text-slate-400">Cell center: ${ref.lat.toFixed(2)}, ${ref.lon.toFixed(2)}</p>
+        <p class="m-0 text-[10px] text-slate-400">${t('Cell center')}: ${ref.lat.toFixed(2)}, ${ref.lon.toFixed(2)}</p>
       </div>
     </div>`;
 }
@@ -1008,7 +1024,7 @@ function mostrarPopupCelda2D(lat, lon) {
 function initClimateControls() {
   const srcSel = document.getElementById('climate-source');
   if (srcSel) {
-    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${s.label}</option>`).join('');
+    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${t(s.label)}</option>`).join('');
     srcSel.value = state.source;
     srcSel.addEventListener('change', () => {
       state.source = srcSel.value;
@@ -1057,7 +1073,7 @@ function poblarSelectorVariables() {
   const groups = { Acute: [], Chronic: [] };
   vars.forEach(v => (groups[getVarMeta(v).type] || groups.Chronic).push(v));
   sel.innerHTML = Object.entries(groups).filter(([, list]) => list.length).map(([g, list]) =>
-    `<optgroup label="${g} hazards">${list.map(v => `<option value="${v}">${getVarMeta(v).name}</option>`).join('')}</optgroup>`).join('');
+    `<optgroup label="${t(g + ' hazards')}">${list.map(v => `<option value="${v}">${getVarMeta(v).name}</option>`).join('')}</optgroup>`).join('');
   sel.value = state.variable;
   actualizarDescripcionVariable();
 }
@@ -1065,7 +1081,7 @@ function poblarSelectorVariables() {
 function actualizarDescripcionVariable() {
   const el = document.getElementById('climate-var-desc');
   const meta = getVarMeta();
-  if (el) el.textContent = `${meta.desc}${meta.unit ? ` Units: ${meta.unit}.` : ''}`;
+  if (el) el.textContent = `${meta.desc}${meta.unit ? ` ${t('Units')}: ${meta.unit}.` : ''}`;
 }
 
 function actualizarOpcionesFuente() {
@@ -1081,7 +1097,7 @@ function renderScenarioButtons() {
   const opts = [
     { key: 'A', label: sc.A.short, title: `${sc.A.label} (${sc.A.note})` },
     { key: 'B', label: sc.B.short, title: `${sc.B.label} (${sc.B.note})` },
-    { key: 'DIFF', label: 'Δ Change', title: `${sc.B.label} − ${sc.A.label}` }
+    { key: 'DIFF', label: t('Δ Change'), title: `${sc.B.label} − ${sc.A.label}` }
   ];
   box.innerHTML = opts.map(o => `
     <button type="button" title="${escapeHtml(o.title)}" onclick="seleccionarEscenario('${o.key}')"
@@ -1096,9 +1112,12 @@ function seleccionarEscenario(key) {
   if (cesiumPopupAssetId == null && cesiumPopupPosition) cerrarCesiumPopup();
 }
 
+let lastClimateStatus = null;
 function setClimateStatus(html, kind = 'info') {
   const el = document.getElementById('climate-status');
   if (!el) return;
+  lastClimateStatus = [html, kind];
+  if (typeof html === 'function') html = html();
   const color = { info: 'text-blue-300', ok: 'text-emerald-400', error: 'text-rose-400' }[kind];
   el.className = `text-[9px] leading-relaxed px-0.5 ${color}`;
   el.innerHTML = html;
@@ -1240,11 +1259,11 @@ function assetPopupHTML(asset) {
   const meta = getVarMeta();
   const sc = getScenarios();
   const m = asset.matchB || asset.matchA;
-  let matchTxt = 'No climate data loaded';
+  let matchTxt = t('No climate data loaded');
   if (m) {
     matchTxt = m.outside
-      ? `<span class="text-rose-500">Outside data coverage (${m.distKm.toFixed(0)} km to nearest cell)</span>`
-      : `${m.exact ? 'Grid cell' : 'Nearest cell'} ${m.cellLat.toFixed(2)}, ${m.cellLon.toFixed(2)} · ${m.distKm.toFixed(1)} km`;
+      ? `<span class="text-rose-500">${t('Outside data coverage ({km} km to nearest cell)', { km: m.distKm.toFixed(0) })}</span>`
+      : `${t(m.exact ? 'Grid cell' : 'Nearest cell')} ${m.cellLat.toFixed(2)}, ${m.cellLon.toFixed(2)} · ${m.distKm.toFixed(1)} km`;
   }
   const tierColor = TIER_COLORS[asset.tier || 'NA'];
   return `
@@ -1254,16 +1273,20 @@ function assetPopupHTML(asset) {
           <i class="fa-solid fa-industry text-blue-600 text-xs"></i>
           <h4 class="font-bold text-xs text-slate-800 m-0">${escapeHtml(asset.name)}</h4>
         </div>
-        ${asset.tier && asset.tier !== 'NA' ? `<span class="text-[9px] font-bold px-1.5 rounded" style="color:${tierColor};border:1px solid ${tierColor}">${asset.tier}</span>` : ''}
+        ${asset.tier && asset.tier !== 'NA' ? `<span title="${t('Relative exposure tercile within the portfolio')}" class="text-[9px] font-bold px-1.5 rounded" style="color:${tierColor};border:1px solid ${tierColor}">${t(asset.tier)}</span>` : ''}
       </div>
       <div class="text-[10px] text-slate-500 mb-1">${escapeHtml(meta.name)}</div>
       <div class="text-[11px] text-slate-600 space-y-0.5 border-t border-slate-200 pt-1">
         <p class="m-0"><b>${sc.A.label}:</b> ${fmtVal(asset.vA, meta)}</p>
         <p class="m-0"><b>${sc.B.label}:</b> ${fmtVal(asset.vB, meta)}</p>
-        <p class="m-0"><b>Change:</b> <span style="color:${asset.diff != null && isWorse(asset.diff, meta) ? '#dc2626' : '#059669'}">${fmtVal(asset.diff, meta, true)}</span></p>
+        <p class="m-0"><b>${t('Change')}:</b> <span style="color:${asset.diff != null && isWorse(asset.diff, meta) ? '#dc2626' : '#059669'}">${fmtVal(asset.diff, meta, true)}</span></p>
         <p class="m-0 text-[10px] text-slate-500">${matchTxt}</p>
         <p class="m-0 text-[10px] text-slate-400">Lat/Lon: ${asset.lat.toFixed(5)}, ${asset.lng.toFixed(5)}</p>
-        <p class="m-0 text-[10px] text-slate-400"><b>Origin:</b> ${escapeHtml(asset.source)}</p>
+        <p class="m-0 text-[10px] text-slate-400"><b>${t('Origin')}:</b> ${escapeHtml(t(asset.source))}</p>
+      </div>
+      <div class="flex gap-1.5 mt-2">
+        <button onclick="verPerfilActivo('${asset.id}')" class="flex-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold cursor-pointer"><i class="fa-solid fa-table-cells"></i> ${t('Hazard profile')}</button>
+        <button onclick="generarFichaActivo('${asset.id}')" class="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold cursor-pointer"><i class="fa-solid fa-file-pdf"></i> ${t('Factsheet')}</button>
       </div>
     </div>`;
 }
@@ -1295,13 +1318,13 @@ function addManualLocation() {
     lat = parseFloat(val('manual-lat'));
     lng = parseFloat(val('manual-lng'));
   } else {
-    if (!val('lat-deg') || !val('lng-deg')) { alert('Ingresa al menos los grados de latitud y longitud.'); return; }
+    if (!val('lat-deg') || !val('lng-deg')) { alert(t('Enter at least the latitude and longitude degrees.')); return; }
     lat = dmsToDecimal(val('lat-deg'), val('lat-min'), val('lat-sec'), val('lat-dir'));
     lng = dmsToDecimal(val('lng-deg'), val('lng-min'), val('lng-sec'), val('lng-dir'));
   }
 
-  if (!isFinite(lat) || !isFinite(lng)) { alert('Por favor ingresa coordenadas válidas.'); return; }
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { alert('Las coordenadas están fuera del rango válido.'); return; }
+  if (!isFinite(lat) || !isFinite(lng)) { alert(t('Please enter valid coordinates.')); return; }
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { alert(t('Coordinates are out of the valid range.')); return; }
 
   agregarPuntoAlSistema(name, lat, lng, 'Manual');
 
@@ -1314,7 +1337,7 @@ function renderActiveLayers() {
   const container = document.getElementById('contenedor-capas');
   if (!container) return;
   if (!state.assets.length) {
-    container.innerHTML = `<p id="empty-layers-msg" class="text-[10px] text-slate-500 text-center py-2">No active assets loaded.</p>`;
+    container.innerHTML = `<p id="empty-layers-msg" class="text-[10px] text-slate-500 text-center py-2">${t('No active assets loaded.')}</p>`;
     return;
   }
   container.innerHTML = state.assets.map(loc => `
@@ -1322,11 +1345,11 @@ function renderActiveLayers() {
       <div class="flex items-center gap-2 truncate pr-2">
         <input type="checkbox" ${loc.enabled ? 'checked' : ''} onchange="toggleLocationVisibility('${loc.id}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer">
         <span class="w-2 h-2 rounded-full shrink-0" style="background:${TIER_COLORS[loc.tier || 'NA']}"></span>
-        <span class="text-[11px] font-medium text-slate-300 truncate cursor-pointer hover:text-white" onclick="zoomToLocation('${loc.id}')" title="${escapeHtml(loc.source)}">${escapeHtml(loc.name)}</span>
+        <span class="text-[11px] font-medium text-slate-300 truncate cursor-pointer hover:text-white" onclick="zoomToLocation('${loc.id}')" title="${escapeHtml(t(loc.source))}">${escapeHtml(loc.name)}</span>
       </div>
       <div class="flex items-center gap-1.5">
         <span class="text-[9px] text-slate-500 font-mono">(${loc.lat.toFixed(2)}, ${loc.lng.toFixed(2)})</span>
-        <button onclick="deleteLocation(event, '${loc.id}')" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors opacity-80 group-hover:opacity-100 cursor-pointer" title="Delete">
+        <button onclick="deleteLocation(event, '${loc.id}')" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors opacity-80 group-hover:opacity-100 cursor-pointer" title="${t('Delete')}">
           <i class="fa-solid fa-trash-can text-[10px] pointer-events-none"></i>
         </button>
       </div>
@@ -1456,21 +1479,22 @@ function abrirPanelConsultas() {
 }
 
 function renderPortfolio() {
+  scheduleProfileRender();
   const meta = getVarMeta();
   const sc = getScenarios();
   const data = activosActivos().filter(a => a.vA != null || a.vB != null);
 
   // Etiquetas dinámicas
-  setText('metric-label-a', `Avg. · ${sc.A.label}`);
-  setText('metric-label-b', `Avg. · ${sc.B.label}`);
-  setText('metric-label-change', `Avg. change (${sc.A.short} → ${sc.B.short})`);
+  setText('metric-label-a', `${t('Avg.')} · ${sc.A.label}`);
+  setText('metric-label-b', `${t('Avg.')} · ${sc.B.label}`);
+  setText('metric-label-change', t('Avg. change ({a} → {b})', { a: sc.A.short, b: sc.B.short }));
   setText('th-col-a', sc.A.short);
   setText('th-col-b', sc.B.short);
   setText('th-col-diff', 'Δ');
-  setText('risk-label-max', `Highest exposure (${sc.B.short})`);
-  setText('risk-label-min', `Most resilient (${sc.B.short})`);
+  setText('risk-label-max', t('Highest exposure ({s})', { s: sc.B.short }));
+  setText('risk-label-min', t('Lowest exposure ({s})', { s: sc.B.short }));
   const varLabel = document.getElementById('portfolio-variable-label');
-  if (varLabel) varLabel.textContent = `${meta.name}${meta.unit ? ` (${meta.unit})` : ''} · ${data.length} asset(s)`;
+  if (varLabel) { varLabel.textContent = `${meta.name}${meta.unit ? ` (${meta.unit})` : ''} · ${t('{n} asset(s)', { n: data.length })}`; varLabel.title = state.source === 'github' ? t('Changes relative to {p}', { p: REFERENCE_PERIOD }) : ''; }
 
   const metricA = document.getElementById('metric-p2030');
   const metricB = document.getElementById('metric-p2050');
@@ -1478,14 +1502,14 @@ function renderPortfolio() {
   const tbody = document.getElementById('asset-productivity-list');
 
   if (!data.length) {
-    if (metricA) { metricA.textContent = '—'; if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = 'No data'; }
-    if (metricB) { metricB.textContent = '—'; if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = 'No data'; }
+    if (metricA) { metricA.textContent = '—'; if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = t('No data'); }
+    if (metricB) { metricB.textContent = '—'; if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = t('No data'); }
     if (changeEl) changeEl.textContent = '—';
     setText('plant-max-exposure', '—'); setText('plant-resilient', '—');
     setText('risk-max-value', ''); setText('risk-min-value', '');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-2 text-center text-slate-500">${state.loading ? 'Loading…' : 'No assets with data for this layer.'}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-2 text-center text-slate-500">${state.loading ? t('Loading…') : t('No assets with data for this layer.')}</td></tr>`;
     const chart = document.getElementById('chart-asset-productivity');
-    if (chart) chart.innerHTML = `<span class="text-[9px] text-slate-500 italic">No data</span>`;
+    if (chart) chart.innerHTML = `<span class="text-[9px] text-slate-500 italic">${t('No data')}</span>`;
     setText('risk-description', meta.desc);
     return;
   }
@@ -1498,11 +1522,11 @@ function renderPortfolio() {
   const sA = stats(data.map(a => a.vA)), sB = stats(data.map(a => a.vB));
   if (metricA) {
     metricA.textContent = fmtVal(sA?.avg, meta);
-    if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = sA ? `Range: ${fmtNum(sA.min)} – ${fmtNum(sA.max)}` : '—';
+    if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = sA ? `${t('Range')}: ${fmtNum(sA.min)} – ${fmtNum(sA.max)}` : '—';
   }
   if (metricB) {
     metricB.textContent = fmtVal(sB?.avg, meta);
-    if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = sB ? `Range: ${fmtNum(sB.min)} – ${fmtNum(sB.max)}` : '—';
+    if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = sB ? `${t('Range')}: ${fmtNum(sB.min)} – ${fmtNum(sB.max)}` : '—';
   }
   if (changeEl && sA && sB) {
     const d = sB.avg - sA.avg;
@@ -1523,7 +1547,7 @@ function renderPortfolio() {
   const highCount = data.filter(a => a.tier === 'HIGH').length;
   const worsening = data.filter(a => a.diff != null && isWorse(a.diff, meta)).length;
   setText('risk-description',
-    `${meta.desc} ${worsening} of ${data.length} assets worsen from ${sc.A.short} to ${sc.B.short}; ${highCount} in the high-exposure tier.`);
+    `${meta.desc} ${t("{w} of {n} assets see more hazard at {b} than at {a}; {h} in the portfolio's top exposure tier.", { w: worsening, n: data.length, a: sc.A.short, b: sc.B.short, h: highCount })}`);
 
   // 3. Comparación
   const sortOption = document.getElementById('select-sort-assets')?.value || 'risk-desc';
@@ -1536,7 +1560,7 @@ function renderPortfolio() {
   if (tbody) {
     tbody.innerHTML = sorted.map(a => {
       const dCls = a.diff == null ? 'text-slate-500' : isWorse(a.diff, meta) ? 'text-rose-400' : 'text-emerald-400';
-      const approx = a.matchB && !a.matchB.exact ? '<span class="text-slate-500" title="Nearest grid cell">≈</span>' : '';
+      const approx = a.matchB && !a.matchB.exact ? `<span class="text-slate-500" title="${t('Nearest grid cell')}">≈</span>` : '';
       return `
         <tr class="hover:bg-slate-800/40 transition-colors cursor-pointer" onclick="zoomToLocation('${a.id}')">
           <td class="py-1 px-1.5 font-medium text-slate-200 truncate max-w-[80px]" title="${escapeHtml(a.name)}">
@@ -1569,14 +1593,14 @@ function renderMiniChart(data, sc) {
     const bar = (v, x, color, label) => v == null ? '' :
       `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${bw}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" fill="${color}" rx="1"><title>${escapeHtml(a.name)} · ${label}: ${fmtNum(v)}</title></rect>`;
     return `${bar(a.vA, cx - bw - 0.5, '#F4A261', sc.A.short)}${bar(a.vB, cx + 0.5, '#E63946', sc.B.short)}
-      <text x="${cx}" y="${H - 3}" font-size="7" fill="#94a3b8" text-anchor="middle">${escapeHtml(a.name.substring(0, 4))}</text>`;
+      <text x="${cx}" y="${H - 3}" font-size="7" fill="${isLightTheme() ? '#475569' : '#94a3b8'}" text-anchor="middle">${escapeHtml(a.name.substring(0, 4))}</text>`;
   }).join('');
 
   el.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="w-full h-full" preserveAspectRatio="none">
-      <line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="#334155" stroke-width="0.6"/>
+      <line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="${isLightTheme() ? '#cbd5e1' : '#334155'}" stroke-width="0.6"/>
       ${bars}
-      <g font-size="7" fill="#cbd5e1">
+      <g font-size="7" fill="${isLightTheme() ? '#334155' : '#cbd5e1'}">
         <rect x="4" y="2" width="6" height="6" fill="#F4A261"/><text x="12" y="7.5">${escapeHtml(sc.A.short)}</text>
         <rect x="44" y="2" width="6" height="6" fill="#E63946"/><text x="52" y="7.5">${escapeHtml(sc.B.short)}</text>
       </g>
@@ -1595,9 +1619,9 @@ function handleFileUpload(event) {
     try {
       if (ext === 'csv' || ext === 'txt') parseCSVData(e.target.result, file.name);
       else if (ext === 'geojson' || ext === 'json') parseGeoJSONData(JSON.parse(e.target.result), file.name);
-      else alert(`Archivo "${file.name}" no soportado. Sube un CSV, TXT o GeoJSON.`);
+      else alert(t('File "{f}" is not supported. Upload a CSV, TXT or GeoJSON.', { f: file.name }));
     } catch (err) {
-      alert(`No se pudo leer ${file.name}: ${err.message}`);
+      alert(t('Could not read {f}: {e}', { f: file.name, e: err.message }));
     }
     event.target.value = '';
   };
@@ -1612,7 +1636,7 @@ function parseCSVData(csvText, fileName) {
   const latIdx = headers.findIndex(h => h.startsWith('lat'));
   const lngIdx = headers.findIndex(h => h.startsWith('lon') || h.startsWith('lng') || h === 'long');
   const nameIdx = headers.findIndex(h => /name|nombre|asset|activo|planta|punto/.test(h));
-  if (latIdx < 0 || lngIdx < 0) { alert("No se identificaron columnas de latitud ('lat') y longitud ('lon'/'lng')."); return; }
+  if (latIdx < 0 || lngIdx < 0) { alert(t("No latitude ('lat') and longitude ('lon'/'lng') columns were found.")); return; }
 
   let added = 0;
   lines.slice(1).forEach((line, i) => {
@@ -1623,12 +1647,12 @@ function parseCSVData(csvText, fileName) {
   finalizarCargaMasiva();
   zoomToAllAssets();
   abrirPanelConsultas();
-  alert(`Se importaron ${added} ubicaciones desde ${fileName}.`);
+  alert(t('{n} locations imported from {f}.', { n: added, f: fileName }));
 }
 
 function parseGeoJSONData(geoJson, fileName) {
   const features = geoJson.type === 'Feature' ? [geoJson] : geoJson.features;
-  if (!Array.isArray(features)) { alert('GeoJSON sin "features".'); return; }
+  if (!Array.isArray(features)) { alert(t('GeoJSON without "features".')); return; }
   let added = 0;
   features.forEach((f, i) => {
     const g = f.geometry;
@@ -1643,7 +1667,7 @@ function parseGeoJSONData(geoJson, fileName) {
   finalizarCargaMasiva();
   zoomToAllAssets();
   abrirPanelConsultas();
-  alert(`Se importaron ${added} puntos desde ${fileName}.`);
+  alert(t('{n} locations imported from {f}.', { n: added, f: fileName }));
 }
 
 function zoomToAllAssets() {
@@ -1726,10 +1750,10 @@ function estadisticaZonal(poly) {
 function zonalHTML(z) {
   if (!z) return '';
   const meta = getVarMeta();
-  if (!z.n) return `<br><span style="color:#64748b">No grid cells inside the area</span>`;
+  if (!z.n) return `<br><span style="color:#64748b">${t('No grid cells inside the area')}</span>`;
   const signed = state.display === 'DIFF';
   return `<hr style="margin:4px 0"><b>${escapeHtml(meta.name)}</b> · ${escapeHtml(displayLabel())}<br>
-    Cells: <b>${z.n}</b> · Mean: <b>${fmtVal(z.mean, meta, signed)}</b><br>Min/Max: ${fmtNum(z.min)} / ${fmtNum(z.max)}`;
+    ${t('Cells')}: <b>${z.n}</b> · ${t('Mean')}: <b>${fmtVal(z.mean, meta, signed)}</b><br>Min/Max: ${fmtNum(z.min)} / ${fmtNum(z.max)}`;
 }
 
 function setStatusDibujo(text, cls) {
@@ -1750,7 +1774,7 @@ function activarHerramientaDibujo(modo) {
     lasso: 'Lasso mode: successive clicks (double click to finish)',
     measure: 'Measure mode: click route points (double click to finish)'
   };
-  setStatusDibujo(msgs[modo], 'text-[9px] text-blue-400 font-bold px-1 animate-pulse');
+  setStatusDibujo(t(msgs[modo]), 'text-[9px] text-blue-400 font-bold px-1 animate-pulse');
 
   if (leafletMap) {
     leafletMap.getContainer().style.cursor = 'crosshair';
@@ -1816,16 +1840,16 @@ function procesarClicPunto(coord) {
   if (!activeDrawTool) return;
 
   if (activeDrawTool === 'point') {
-    const nombre = prompt('Analysis point name:', `Analysis-${state.assets.length + 1}`);
+    const nombre = prompt(t('Analysis point name:'), `${t('Analysis')}-${state.assets.length + 1}`);
     desactivarHerramientasActuales();
     if (!nombre) return;
     agregarPuntoAlSistema(nombre, coord.lat, coord.lng, 'Spatial analysis');
-    setStatusDibujo('Point added and evaluated', 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Point added and evaluated'), 'text-[9px] text-green-400 font-semibold px-1');
 
   } else if (activeDrawTool === 'rectangle') {
     if (!tempPoints.length) {
       tempPoints.push(coord);
-      setStatusDibujo('Corner 1 set. Click the opposite corner.');
+      setStatusDibujo(t('Corner 1 set. Click the opposite corner.'));
       return;
     }
     const p1 = tempPoints[0], p2 = coord;
@@ -1833,7 +1857,7 @@ function procesarClicPunto(coord) {
     const minLng = Math.min(p1.lng, p2.lng), maxLng = Math.max(p1.lng, p2.lng);
     const poly = [{ lat: minLat, lng: minLng }, { lat: maxLat, lng: minLng }, { lat: maxLat, lng: maxLng }, { lat: minLat, lng: maxLng }];
     const areaText = formatearArea(calcularAreaPoligono(poly));
-    const html = `<b>Analysis rectangle</b><br>Area: <b>${areaText}</b>${zonalHTML(estadisticaZonal(poly))}`;
+    const html = `<b>${t('Analysis rectangle')}</b><br>${t('Area')}: <b>${areaText}</b>${zonalHTML(estadisticaZonal(poly))}`;
 
     if (leafletMap) {
       const r = L.rectangle([[minLat, minLng], [maxLat, maxLng]], { color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 }).addTo(leafletMap);
@@ -1850,12 +1874,12 @@ function procesarClicPunto(coord) {
       }));
       if (currentMode === '3d') mostrarCesiumPopupEn(Cesium.Cartesian3.fromDegrees((minLng + maxLng) / 2, (minLat + maxLat) / 2), `<div class="text-[11px] pr-4">${html}</div>`, null);
     }
-    setStatusDibujo(`Rectangle drawn (${areaText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Rectangle drawn ({a})', { a: areaText }), 'text-[9px] text-green-400 font-semibold px-1');
     desactivarHerramientasActuales();
 
   } else if (activeDrawTool === 'lasso' || activeDrawTool === 'measure') {
     tempPoints.push(coord);
-    setStatusDibujo(`${activeDrawTool === 'lasso' ? 'Lasso' : 'Measure'}: ${tempPoints.length} point(s). Double click to finish.`);
+    setStatusDibujo(t('{tool}: {n} point(s). Double click to finish.', { tool: t(activeDrawTool === 'lasso' ? 'Lasso' : 'Measure'), n: tempPoints.length }));
   }
 }
 
@@ -1891,7 +1915,7 @@ function procesarMoverPunto(coord) {
   if (activeDrawTool === 'measure') {
     let d = 0;
     for (let i = 0; i < preview.length - 1; i++) d += calcularDistanciaPuntos(preview[i], preview[i + 1]);
-    setStatusDibujo(`Current distance: ${formatearDistancia(d)}`);
+    setStatusDibujo(t('Current distance: {d}', { d: formatearDistancia(d) }));
   }
 }
 
@@ -1906,7 +1930,7 @@ function finalizarDibujoHerramienta() {
   if (activeDrawTool === 'lasso' && tempPoints.length >= 3) {
     const pts = [...tempPoints];
     const areaText = formatearArea(calcularAreaPoligono(pts));
-    const html = `<b>Lasso polygon</b><br>Area: <b>${areaText}</b>${zonalHTML(estadisticaZonal(pts))}`;
+    const html = `<b>${t('Lasso polygon')}</b><br>${t('Area')}: <b>${areaText}</b>${zonalHTML(estadisticaZonal(pts))}`;
     if (leafletMap) {
       const p = L.polygon(pts.map(q => [q.lat, q.lng]), { color: '#8b5cf6', weight: 2, fillColor: '#8b5cf6', fillOpacity: 0.2 }).addTo(leafletMap);
       p.bindPopup(html);
@@ -1920,7 +1944,7 @@ function finalizarDibujoHerramienta() {
       const c = pts.reduce((s, q) => ({ lat: s.lat + q.lat / pts.length, lng: s.lng + q.lng / pts.length }), { lat: 0, lng: 0 });
       if (currentMode === '3d') mostrarCesiumPopupEn(Cesium.Cartesian3.fromDegrees(c.lng, c.lat), `<div class="text-[11px] pr-4">${html}</div>`, null);
     }
-    setStatusDibujo(`Lasso completed (${areaText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Lasso completed ({a})', { a: areaText }), 'text-[9px] text-green-400 font-semibold px-1');
 
   } else if (activeDrawTool === 'measure') {
     const pts = [...tempPoints];
@@ -1929,7 +1953,7 @@ function finalizarDibujoHerramienta() {
     const distText = formatearDistancia(d);
     if (leafletMap) {
       const l = L.polyline(pts.map(q => [q.lat, q.lng]), { color: '#f59e0b', weight: 3 }).addTo(leafletMap);
-      l.bindPopup(`<b>Distance</b><br>Total length: <b>${distText}</b>`);
+      l.bindPopup(`<b>${t('Distance')}</b><br>${t('Total length')}: <b>${distText}</b>`);
       if (currentMode === '2d') l.openPopup();
       drawnLayers2D.push(l);
     }
@@ -1938,7 +1962,7 @@ function finalizarDibujoHerramienta() {
         polyline: { positions: Cesium.Cartesian3.fromDegreesArray(pts.flatMap(q => [q.lng, q.lat])), width: 3, material: Cesium.Color.ORANGE, clampToGround: true }
       }));
     }
-    setStatusDibujo(`Measurement finished (${distText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Measurement finished ({d})', { d: distText }), 'text-[9px] text-green-400 font-semibold px-1');
   }
   desactivarHerramientasActuales();
 }
@@ -1955,7 +1979,7 @@ function limpiarDibujos() {
   drawnEntities3D.forEach(e => cesiumViewer?.entities.remove(e));
   drawnEntities3D = [];
   if (!cesiumPopupAssetId) cerrarCesiumPopup();
-  setStatusDibujo('Ninguna herramienta activa', 'text-[9px] text-slate-400 italic px-1');
+  setStatusDibujo(t('No active tool'), 'text-[9px] text-slate-400 italic px-1');
 }
 
 // =========================================================================
@@ -1965,7 +1989,7 @@ const langGraphState = { currentStep: 1, userQueryHistory: [], isProcessing: fal
 
 const pipelineConfig = {
   1: { title: 'Step 1: Climate Data Agent', placeholder: 'Request climate data grid extraction...', nextStep: 2 },
-  2: { title: 'Step 2: Risk Analysis Agent', placeholder: 'Request vulnerability and loss evaluation...', nextStep: 3 },
+  2: { title: 'Step 2: Risk Analysis Agent', placeholder: 'Request hazard exposure ranking...', nextStep: 3 },
   3: { title: 'Step 3: Report Generator Agent', placeholder: 'Request PDF report consolidation...', nextStep: 4 },
   4: { title: 'Step 4: Climate Finance Agent', placeholder: 'Search funding opportunities...', nextStep: null }
 };
@@ -1980,36 +2004,36 @@ function buildAgentResponse(step) {
   const card = inner => `<div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-[10px] font-mono">${inner}</div>`;
 
   if (step === 1) return {
-    agentName: 'Agent 1: Climate Ingestion & Filtering',
+    agentName: t('Agent 1: Climate Ingestion & Filtering'),
     toolExecuted: `fetch_grid(source='${state.source}', var='${state.variable}', scenarios=['${sc.A.code}','${sc.B.code}'])`,
-    llmReasoning: `Loaded ${state.grids.A?.points.length || 0} grid cells per scenario for ${meta.name} and extracted values for ${data.length} assets by grid cell / nearest neighbour.`,
-    cardHTML: card(row('Variable:', escapeHtml(state.variable), 'text-green-400') + row('Scenarios:', `${sc.A.label} / ${sc.B.label}`) +
-      row('Grid resolution:', `${state.grids.A?.resLat ?? '—'}°`, 'text-blue-400')),
-    suggestion: 'Data validated. Transfer context to <b>Agent 2 (Risk Analysis)</b>.'
+    llmReasoning: t('Loaded {c} grid cells per scenario for {v} and extracted values for {n} assets by grid cell / nearest neighbour.', { c: state.grids.A?.points.length || 0, v: meta.name, n: data.length }),
+    cardHTML: card(row(t('Variable') + ':', escapeHtml(state.variable), 'text-green-400') + row(t('Scenarios') + ':', `${sc.A.label} / ${sc.B.label}`) +
+      row(t('Grid resolution') + ':', `${state.grids.A?.resLat ?? '—'}°`, 'text-blue-400')),
+    suggestion: t('Data validated. Transfer context to <b>Agent 2 (Exposure Ranking)</b>.')
   };
   if (step === 2) return {
-    agentName: 'Agent 2: Physical Vulnerability & Exposure',
+    agentName: t('Agent 2: Hazard Exposure Ranking'),
     toolExecuted: `rank_assets(var='${state.variable}', scenario='${sc.B.code}', direction='${meta.worse}')`,
-    llmReasoning: worst ? `Highest exposure under ${sc.B.label}: ${escapeHtml(worst.name)}. ${data.filter(a => a.tier === 'HIGH').length} asset(s) in the high tier.` : 'No assets with data.',
+    llmReasoning: worst ? t('Highest exposure under {s}: {a}. {n} asset(s) in the high tier.', { s: sc.B.label, a: escapeHtml(worst.name), n: data.filter(a => a.tier === 'HIGH').length }) : t('No assets with data.'),
     cardHTML: card(sorted.slice(0, 4).map(a => row(`${escapeHtml(a.name)}:`, `${fmtVal(a.vA, meta)} → ${fmtVal(a.vB, meta)}`, isWorse(a.diff ?? 0, meta) ? 'text-red-400' : 'text-emerald-400')).join('')),
-    suggestion: 'Assessment stored in state. Proceed to the <b>Agent 3</b> report.'
+    suggestion: t('Assessment stored in state. Proceed to the <b>Agent 3</b> report.')
   };
   if (step === 3) return {
-    agentName: 'Agent 3: Report Generator (PDF)',
+    agentName: t('Agent 3: Report Generator (PDF)'),
     toolExecuted: `build_pdf_report(template='SEI_Executive_V1', var='${state.variable}')`,
-    llmReasoning: 'Consolidated portfolio metrics, rankings and maps into a structured report (demo).',
+    llmReasoning: t('Consolidated portfolio metrics, rankings and maps into a structured report (demo).'),
     cardHTML: `<div class="p-2.5 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 overflow-hidden"><i class="fa-solid fa-file-pdf text-red-400 text-xl shrink-0"></i>
-        <div class="truncate"><p class="text-[10px] font-bold text-white truncate">Climate_Risk_${escapeHtml(state.variable)}.pdf</p><p class="text-[9px] text-slate-400">Demo output</p></div></div>
+        <div class="truncate"><p class="text-[10px] font-bold text-white truncate">Climate_Risk_${escapeHtml(state.variable)}.pdf</p><p class="text-[9px] text-slate-400">${t('Demo output')}</p></div></div>
         <button onclick="downloadReportSimulated()" class="px-2.5 py-1 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold shrink-0"><i class="fa-solid fa-download"></i> PDF</button></div>`,
-    suggestion: 'Report issued. Transfer to <b>Agent 4</b> to search funding lines.'
+    suggestion: t('Report issued. Transfer to <b>Agent 4</b> to search funding lines.')
   };
   return {
-    agentName: 'Agent 4: Climate Finance Matching',
+    agentName: t('Agent 4: Climate Finance Matching'),
     toolExecuted: `match_funds(hazard_type='${meta.type}', country='COL')`,
-    llmReasoning: 'Candidate adaptation finance windows for the identified hazards (demo, not verified).',
-    cardHTML: card(row('Adaptation-focused funds', 'to review', 'text-amber-400') + row('Development bank lines', 'to review', 'text-amber-400')),
-    suggestion: 'Pipeline completed.'
+    llmReasoning: t('Candidate adaptation finance windows for the identified hazards (demo, not verified).'),
+    cardHTML: card(row(t('Adaptation-focused funds'), t('to review'), 'text-amber-400') + row(t('Development bank lines'), t('to review'), 'text-amber-400')),
+    suggestion: t('Pipeline completed.')
   };
 }
 
@@ -2030,7 +2054,7 @@ function executeCurrentStep(customInput = null) {
   chatBody.insertAdjacentHTML('beforeend', `
     <div id="${loadingId}" class="flex gap-2.5">
       <div class="w-7 h-7 rounded-lg bg-green-950/40 border border-green-500/30 flex items-center justify-center shrink-0"><i class="fa-solid fa-spinner animate-spin text-green-400 text-xs"></i></div>
-      <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl rounded-tl-none text-slate-400 text-[11px]">Running agent ${langGraphState.currentStep}…</div>
+      <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl rounded-tl-none text-slate-400 text-[11px]">${t('Running agent {n}…', { n: langGraphState.currentStep })}</div>
     </div>`);
   chatBody.scrollTop = chatBody.scrollHeight;
 
@@ -2039,7 +2063,7 @@ function executeCurrentStep(customInput = null) {
     const step = langGraphState.currentStep;
     const res = buildAgentResponse(step);
     const next = pipelineConfig[step].nextStep;
-    const btn = next ? `<div class="pt-1"><button onclick="triggerNextAgentStep(${next})" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1.5"><i class="fa-solid fa-arrow-right"></i> Run ${pipelineConfig[next].title.split(':')[1]}</button></div>` : '';
+    const btn = next ? `<div class="pt-1"><button onclick="triggerNextAgentStep(${next})" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1.5"><i class="fa-solid fa-arrow-right"></i> ${t('Run agent {n}', { n: next })}</button></div>` : '';
     chatBody.insertAdjacentHTML('beforeend', `
       <div class="flex gap-2.5">
         <div class="w-7 h-7 rounded-lg bg-green-950/60 border border-green-500/40 flex items-center justify-center shrink-0"><i class="fa-solid fa-robot text-green-400 text-xs"></i></div>
@@ -2062,7 +2086,7 @@ function executeCurrentStep(customInput = null) {
 
 function triggerNextAgentStep(targetStep) {
   selectStep(targetStep);
-  executeCurrentStep(pipelineConfig[targetStep].placeholder);
+  executeCurrentStep(t(pipelineConfig[targetStep].placeholder));
 }
 
 function unlockNextStepUI(completedStep) {
@@ -2084,9 +2108,685 @@ function unlockNextStepUI(completedStep) {
 function selectStep(stepNumber) {
   langGraphState.currentStep = stepNumber;
   const input = document.getElementById('user-chat-input');
-  if (input) input.placeholder = pipelineConfig[stepNumber].placeholder;
+  if (input) input.placeholder = t(pipelineConfig[stepNumber].placeholder);
 }
 
 function downloadReportSimulated() {
-  alert('Descarga simulada del reporte técnico de riesgo climático (PDF).');
+  alert(t('Simulated download of the technical climate risk report (PDF).'));
+}
+
+// =========================================================================
+// 18. PERFIL MULTI-AMENAZA (todas las variables de la fuente activa)
+// =========================================================================
+const hazardCache = new Map(); // `${escenarios}|${variable}` -> Promise<{A,B,DIFF,sorted}>
+const profileState = { tab: 'matrix', assetId: null, token: 0, data: null, timer: null };
+const RAMP_PCT = ['#fef9e7', '#fde68a', '#fbbf24', '#f97316', '#dc2626', '#7f1d1d'];
+
+function scenarioKey(source = state.source) {
+  const sc = SOURCES[source].scenarios();
+  return `${source}|${sc.A.code}|${sc.B.code}|${source === 'cie_api' ? state.cieRcp : ''}`;
+}
+
+function makeHazardEntry(gA, gB) {
+  const DIFF = diffGrid(gA, gB);
+  const sortVals = g => g.points.map(p => p.value).sort((a, b) => a - b);
+  return { A: gA, B: gB, DIFF, sorted: { A: sortVals(gA), B: sortVals(gB), DIFF: sortVals(DIFF) } };
+}
+
+/** Carga (con caché) los dos escenarios de una variable */
+function getHazardEntry(variable, source = state.source) {
+  const key = `${scenarioKey(source)}|${variable}`;
+  if (!hazardCache.has(key)) {
+    const src = SOURCES[source];
+    const sc = src.scenarios();
+    const p = Promise.all([fetchPoints(src.url(variable, sc.A), src.parse), fetchPoints(src.url(variable, sc.B), src.parse)])
+      .then(([a, b]) => makeHazardEntry(buildGrid(a), buildGrid(b)));
+    p.catch(() => hazardCache.delete(key));
+    hazardCache.set(key, p);
+  }
+  return hazardCache.get(key);
+}
+
+/** % de celdas nacionales con valor <= v (búsqueda binaria) */
+function rankPct(sorted, v) {
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] <= v) lo = m + 1; else hi = m; }
+  return sorted.length ? lo / sorted.length * 100 : null;
+}
+
+/** Percentil de amenaza (0 = menos amenaza del país, 100 = más), orientado según la variable */
+function hazardPercentile(entry, key, v, meta) {
+  if (v == null || !entry) return null;
+  const p = rankPct(entry.sorted[key], v);
+  return p == null ? null : (meta.worse === 'high' ? p : 100 - p);
+}
+
+function assetValues(entry, asset) {
+  const get = g => { const m = extractValue(g, asset.lat, asset.lng); return m && !m.outside ? m : null; };
+  const mA = get(entry.A), mB = get(entry.B);
+  const vA = mA?.value ?? null, vB = mB?.value ?? null;
+  return { vA, vB, diff: vA != null && vB != null ? vB - vA : null, cell: mB || mA };
+}
+
+function valueForKey(vals, key) { return key === 'A' ? vals.vA : key === 'DIFF' ? vals.diff : vals.vB; }
+
+async function ensureProfileData() {
+  const vars = getSource().variables;
+  const results = await Promise.allSettled(vars.map(v => getHazardEntry(v)));
+  const out = {};
+  vars.forEach((v, i) => { if (results[i].status === 'fulfilled') out[v] = results[i].value; });
+  return out;
+}
+
+function orderedVariables() {
+  const vars = getSource().variables;
+  return [...vars.filter(v => getVarMeta(v).type === 'Acute'), ...vars.filter(v => getVarMeta(v).type !== 'Acute')];
+}
+
+function scheduleProfileRender() {
+  clearTimeout(profileState.timer);
+  profileState.timer = setTimeout(renderProfile, 60);
+}
+
+function setProfileTab(tab) {
+  profileState.tab = tab;
+  renderProfile();
+}
+
+async function renderProfile() {
+  const box = document.getElementById('profile-content');
+  if (!box) return;
+  const token = ++profileState.token;
+
+  ['matrix', 'asset'].forEach(t => {
+    const b = document.getElementById(`profile-tab-${t}`);
+    if (b) b.className = `flex-1 py-0.5 rounded transition-colors ${profileState.tab === t ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`;
+  });
+
+  if (!profileState.data || profileState.dataKey !== scenarioKey()) {
+    box.innerHTML = `<p class="text-[9px] text-blue-300 py-3 text-center"><i class="fa-solid fa-spinner animate-spin"></i> ${t('Loading all hazard layers…')}</p>`;
+  }
+  const data = await ensureProfileData();
+  if (token !== profileState.token) return;
+  profileState.data = data;
+  profileState.dataKey = scenarioKey();
+
+  const assets = activosActivos();
+  if (!assets.length) { box.innerHTML = `<p class="text-[9px] text-slate-500 py-3 text-center">${t('Add assets to build the multi-hazard profile.')}</p>`; return; }
+  if (!profileState.assetId || !assets.some(a => a.id === profileState.assetId)) profileState.assetId = assets[0].id;
+
+  box.innerHTML = profileState.tab === 'matrix' ? profileMatrixHTML(data, assets) : profileAssetHTML(data, assets);
+}
+
+function pctCellStyle(p) {
+  if (p == null) return isLightTheme() ? 'background:#e2e8f0;color:#94a3b8' : 'background:#1e293b;color:#64748b';
+  const c = interpRamp(RAMP_PCT, p / 100);
+  return `background:rgb(${c[0]},${c[1]},${c[2]});color:${p >= 55 ? '#fff' : '#1e293b'}`;
+}
+
+function profileMatrixHTML(data, assets) {
+  const key = state.display;
+  const sc = getScenarios();
+  const vars = orderedVariables().filter(v => data[v]);
+  const nAcute = vars.filter(v => getVarMeta(v).type === 'Acute').length;
+  const scenLabel = key === 'DIFF' ? `Δ ${sc.B.short} − ${sc.A.short}` : sc[key].label;
+
+  const head = vars.map((v, i) => {
+    const m = getVarMeta(v);
+    const active = v === state.variable;
+    return `<th title="${escapeHtml(m.name)} — ${t('click to map')}" onclick="seleccionarVariable('${v}')"
+      class="cursor-pointer px-0 py-1 font-semibold ${active ? 'text-blue-300 bg-blue-500/20' : 'text-slate-400 hover:text-white'} ${i === nAcute ? 'border-l border-slate-600' : ''}">
+      <div class="profile-vhead">${escapeHtml(m.short || v)}</div></th>`;
+  }).join('');
+
+  const rows = assets.map(a => {
+    let hot = 0;
+    const cells = vars.map((v, i) => {
+      const m = getVarMeta(v);
+      const vals = assetValues(data[v], a);
+      const val = valueForKey(vals, key);
+      const p = hazardPercentile(data[v], key, val, m);
+      if (p != null && p >= 75) hot++;
+      const tip = `${a.name} · ${m.name}\n${scenLabel}: ${fmtVal(val, m, key === 'DIFF')}\n${t('Hazard percentile vs. national grid')}: ${p == null ? '—' : Math.round(p)}`;
+      return `<td title="${escapeHtml(tip)}" onclick="seleccionarVariable('${v}')" class="cursor-pointer text-center font-mono ${i === nAcute ? 'border-l border-slate-900' : ''}" style="${pctCellStyle(p)}">${p == null ? '·' : Math.round(p)}</td>`;
+    }).join('');
+    return `<tr class="${a.id === profileState.assetId ? 'outline outline-1 outline-blue-400' : ''}">
+      <td class="pr-1 py-0.5 truncate max-w-[62px] text-slate-200 cursor-pointer hover:text-blue-300" title="${escapeHtml(a.name)} — ${t('open profile')}" onclick="verPerfilActivo('${a.id}')">${escapeHtml(a.name)}</td>
+      ${cells}
+      <td class="text-center font-mono font-bold ${hot >= 4 ? 'text-rose-400' : hot >= 2 ? 'text-amber-300' : 'text-slate-400'}" title="${t('Indicators in the top national quartile (≥ P75)')}">${hot}</td></tr>`;
+  }).join('');
+
+  return `
+    <div class="text-[9px] text-slate-400 mb-1">${t('Hazard percentile vs. all Colombian grid cells')} · <span class="text-slate-200">${escapeHtml(scenLabel)}</span></div>
+    <div class="overflow-x-auto custom-scrollbar">
+      <table class="w-full text-[8px] border-separate" style="border-spacing:1px">
+        <thead><tr><th class="text-left text-slate-500 font-normal">${t('Asset')}</th>${head}<th class="text-slate-400 font-semibold" title="${t('Indicators ≥ P75')}"><div class="profile-vhead">≥P75</div></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="flex items-center gap-1.5 mt-1.5 text-[8px] text-slate-500">
+      <span>0</span><div class="flex-1 h-1.5 rounded-sm" style="background:linear-gradient(to right,${RAMP_PCT.join(',')})"></div><span>100</span>
+    </div>
+    <div class="flex justify-between text-[8px] text-slate-500"><span>${t('Acute')} ← | → ${t('Chronic')}</span><span>${t('higher = more hazard')}</span></div>
+    <p class="text-[8px] text-slate-500 mt-1 leading-snug">${t('Click a column to map it, an asset to open its profile. Percentiles are relative to Colombia, not absolute thresholds.')}</p>`;
+}
+
+function profileAssetHTML(data, assets) {
+  const sc = getScenarios();
+  const key = state.display;
+  const a = assets.find(x => x.id === profileState.assetId) || assets[0];
+  const options = assets.map(x => `<option value="${x.id}" ${x.id === a.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('');
+
+  const group = type => orderedVariables().filter(v => data[v] && getVarMeta(v).type === type).map(v => {
+    const m = getVarMeta(v);
+    const vals = assetValues(data[v], a);
+    const p = hazardPercentile(data[v], key, valueForKey(vals, key), m);
+    const dCls = vals.diff == null ? 'text-slate-500' : isWorse(vals.diff, m) ? 'text-rose-400' : 'text-emerald-400';
+    return `
+      <div class="py-1 border-b border-slate-800/60 cursor-pointer hover:bg-slate-800/30" onclick="seleccionarVariable('${v}')" title="${escapeHtml(m.desc)}">
+        <div class="flex items-center justify-between gap-1">
+          <span class="text-[9px] text-slate-200 truncate ${v === state.variable ? 'text-blue-300 font-bold' : ''}">${escapeHtml(m.name)}</span>
+          <span class="text-[8px] text-slate-500 shrink-0">${escapeHtml(m.unit || t('index'))}</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-[9px] font-mono">
+          <span class="w-11 text-slate-300">${fmtNum(vals.vA)}</span>
+          <span class="w-11 text-amber-300">${fmtNum(vals.vB)}</span>
+          <span class="w-12 ${dCls}">${vals.diff == null ? '—' : (vals.diff > 0 ? '+' : '') + fmtNum(vals.diff)}</span>
+          <div class="flex-1 h-1.5 bg-slate-800 rounded-sm overflow-hidden" title="${t('Hazard percentile')}: ${p == null ? '—' : Math.round(p)}">
+            <div class="h-full" style="width:${p ?? 0}%;${pctCellStyle(p).split(';')[0]}"></div>
+          </div>
+          <span class="w-5 text-right text-slate-400">${p == null ? '—' : Math.round(p)}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const cell = a.matchB || a.matchA;
+  return `
+    <div class="flex items-center gap-1.5 mb-1.5">
+      <select onchange="profileState.assetId=this.value; renderProfile()" class="flex-1 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none">${options}</select>
+      <button onclick="generarFichaActivo('${a.id}')" title="${t('Printable factsheet (PDF)')}" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[9px] font-bold"><i class="fa-solid fa-file-pdf"></i> ${t('Factsheet')}</button>
+    </div>
+    <div class="text-[8px] text-slate-500 mb-1">${a.lat.toFixed(4)}, ${a.lng.toFixed(4)}${cell ? ` · ${t('grid cell')} ${cell.cellLat.toFixed(2)}, ${cell.cellLon.toFixed(2)} (${cell.distKm.toFixed(0)} km)` : ''}</div>
+    <div class="flex items-center gap-1.5 text-[8px] uppercase text-slate-500 font-semibold border-b border-slate-700 pb-0.5">
+      <span class="w-11">${escapeHtml(sc.A.short)}</span><span class="w-11">${escapeHtml(sc.B.short)}</span><span class="w-12">Δ</span><span class="flex-1">${t('Percentile')} (${key === 'DIFF' ? 'Δ' : escapeHtml(sc[key].short)})</span>
+    </div>
+    <div class="text-[8px] font-bold text-rose-300 mt-1 uppercase">${t('Acute')}</div>${group('Acute')}
+    <div class="text-[8px] font-bold text-amber-300 mt-1.5 uppercase">${t('Chronic')}</div>${group('Chronic')}
+    <p class="text-[8px] text-slate-500 mt-1">${t('Values are changes vs. {p}. Click an indicator to map it.', { p: REFERENCE_PERIOD })}</p>`;
+}
+
+function seleccionarVariable(v) {
+  if (!getSource().variables.includes(v)) return;
+  state.variable = v;
+  const sel = document.getElementById('climate-variable');
+  if (sel) sel.value = v;
+  actualizarDescripcionVariable();
+  loadClimateData();
+}
+
+function verPerfilActivo(id) {
+  profileState.assetId = id;
+  profileState.tab = 'asset';
+  abrirPanelConsultas();
+  const body = document.getElementById('body-panel-perfil');
+  if (body?.classList.contains('hidden')) toggleWidget('body-panel-perfil', 'icon-toggle-perfil');
+  renderProfile();
+  setTimeout(() => document.getElementById('body-panel-perfil')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+}
+
+// =========================================================================
+// 19. EXPORTACIÓN (CSV / EXCEL), FICHA PDF, PLANTILLA Y ENLACE COMPARTIBLE
+// =========================================================================
+function showToast(msg, kind = 'ok') {
+  const t = document.createElement('div');
+  const color = kind === 'error' ? 'border-rose-500/50 text-rose-200' : 'border-emerald-500/50 text-emerald-200';
+  t.className = `fixed top-24 left-1/2 -translate-x-1/2 z-[10000] bg-slate-900/95 border ${color} text-xs px-3 py-2 rounded-lg shadow-2xl`;
+  t.innerHTML = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error(t('Could not load {f}', { f: src })));
+    document.head.appendChild(s);
+  });
+}
+
+function csvEscape(v) {
+  if (v == null) return '';
+  const s = typeof v === 'number' ? String(+v.toPrecision(6)) : String(v);
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCSV(rows) {
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  return [cols.join(','), ...rows.map(r => cols.map(c => csvEscape(r[c])).join(','))].join('\r\n');
+}
+
+const round = (v, d = 4) => v == null || !isFinite(v) ? null : +v.toFixed(d);
+
+/** Formato largo (tidy): una fila por activo × variable */
+function buildLongRows(data) {
+  const sc = getScenarios();
+  const src = getSource();
+  const rows = [];
+  activosActivos().forEach(a => {
+    orderedVariables().filter(v => data[v]).forEach(v => {
+      const m = getVarMeta(v);
+      const vals = assetValues(data[v], a);
+      rows.push({
+        asset: a.name, latitude: round(a.lat, 6), longitude: round(a.lng, 6), origin: a.source,
+        data_source: src.label, variable: v, indicator: m.name, hazard_type: m.type, unit: m.unit || 'index',
+        value_type: state.source === 'github' ? `change vs ${REFERENCE_PERIOD}${m.relative ? ' (relative)' : ''}` : 'as delivered by CIE API',
+        scenario_a: sc.A.label, value_a: round(vals.vA), scenario_b: sc.B.label, value_b: round(vals.vB),
+        change_b_minus_a: round(vals.diff),
+        hazard_percentile_a: round(hazardPercentile(data[v], 'A', vals.vA, m), 1),
+        hazard_percentile_b: round(hazardPercentile(data[v], 'B', vals.vB, m), 1),
+        grid_cell_lat: vals.cell?.cellLat ?? null, grid_cell_lon: vals.cell?.cellLon ?? null,
+        distance_to_cell_km: round(vals.cell?.distKm, 1)
+      });
+    });
+  });
+  return rows;
+}
+
+async function exportPortfolio(format) {
+  if (!activosActivos().length) { showToast(t('No assets to export.'), 'error'); return; }
+  showToast(`<i class="fa-solid fa-spinner animate-spin"></i> ${t('Preparing export…')}`);
+  try {
+    const data = await ensureProfileData();
+    const rows = buildLongRows(data);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const base = `climate_hazard_portfolio_${state.source}_${stamp}`;
+
+    if (format === 'csv') {
+      downloadBlob(`${base}.csv`, new Blob(['﻿' + toCSV(rows)], { type: 'text/csv;charset=utf-8' }));
+      return;
+    }
+
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const sc = getScenarios();
+    const vars = orderedVariables().filter(v => data[v]);
+    const matrix = activosActivos().map(a => {
+      const r = { asset: a.name };
+      vars.forEach(v => {
+        const m = getVarMeta(v);
+        r[`${m.short} ${sc.B.short}`] = round(assetValues(data[v], a).vB);
+      });
+      return r;
+    });
+    const pctl = activosActivos().map(a => {
+      const r = { asset: a.name };
+      vars.forEach(v => {
+        const m = getVarMeta(v);
+        r[`${m.short} P(${sc.B.short})`] = round(hazardPercentile(data[v], 'B', assetValues(data[v], a).vB, m), 0);
+      });
+      return r;
+    });
+    const varsSheet = vars.map(v => {
+      const m = getVarMeta(v);
+      return { code: v, short: m.short, indicator: m.name, hazard_type: m.type, unit: m.unit || 'index',
+        higher_hazard_when: m.worse === 'high' ? 'value increases' : 'value decreases', description: m.desc };
+    });
+    const about = [
+      { field: 'Tool', value: 'AI Climate Risk Portfolio Explorer (MVP) — SEI Latin America' },
+      { field: 'Generated', value: new Date().toISOString() },
+      { field: 'Data source', value: getSource().label },
+      { field: 'Scenario A', value: `${sc.A.label} (${sc.A.note})` },
+      { field: 'Scenario B', value: `${sc.B.label} (${sc.B.note})` },
+      { field: 'Values', value: state.source === 'github' ? `Change relative to the CIE reference period ${REFERENCE_PERIOD}` : 'As delivered by the CIE v2 API' },
+      { field: 'Spatial method', value: 'Value of the 0.5° grid cell containing the asset; nearest cell when the asset falls outside the grid' },
+      { field: 'Hazard percentile', value: 'Share of Colombian grid cells with lower hazard (0–100), oriented so that higher = more hazard' },
+      { field: 'Limitations', value: 'Hazard indicators only; not financial losses. Central estimate; model spread not included. ~55 km resolution.' },
+      { field: 'Climate data', value: 'Climate Analytics — Climate Impact Explorer (CIE) v2' }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Portfolio_long');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(matrix), `Values_${sc.B.short.replace(/[^\w.]/g, '')}`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pctl), 'Percentiles');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(varsSheet), 'Indicators');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(about), 'About');
+    XLSX.writeFile(wb, `${base}.xlsx`);
+  } catch (err) {
+    console.error(err);
+    showToast(`${t('Export failed')}: ${escapeHtml(err.message)}`, 'error');
+  }
+}
+
+function downloadTemplateCSV() {
+  const rows = ['name,lat,lon', ...DEFAULT_ASSETS.map(a => `${a.name},${a.lat},${a.lng}`)];
+  downloadBlob('assets_template.csv', new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+}
+
+// --- Enlace compartible (estado en el hash de la URL) ---
+function buildShareURL() {
+  const payload = {
+    s: state.source, v: state.variable, d: state.display, r: state.cieRcp, l: currentLang,
+    a: activosActivos().map(a => [a.name, +a.lat.toFixed(5), +a.lng.toFixed(5)])
+  };
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${location.href.split('#')[0]}#p=${b64}`;
+}
+
+function readShareState() {
+  const m = location.hash.match(/#p=([\w-]+)/);
+  if (!m) return null;
+  try {
+    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const p = JSON.parse(decodeURIComponent(escape(atob(b64))));
+    if (!SOURCES[p.s]) return null;
+    return {
+      source: p.s,
+      variable: SOURCES[p.s].variables.includes(p.v) ? p.v : SOURCES[p.s].variables[0],
+      display: ['A', 'B', 'DIFF'].includes(p.d) ? p.d : 'B',
+      cieRcp: ['rcp26', 'rcp45', 'rcp85'].includes(p.r) ? p.r : 'rcp45',
+      lang: LANGS[p.l] ? p.l : null,
+      assets: Array.isArray(p.a) ? p.a.filter(x => Array.isArray(x) && isFinite(x[1]) && isFinite(x[2])).slice(0, 500) : []
+    };
+  } catch { return null; }
+}
+
+async function copyShareLink() {
+  const url = buildShareURL();
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast(`<i class="fa-solid fa-link"></i> ${t('Share link copied to clipboard')}`);
+  } catch {
+    prompt(t('Copy this link:'), url);
+  }
+}
+
+// --- Ficha imprimible por activo (Guardar como PDF desde el diálogo de impresión) ---
+function mapThumbnail(asset) {
+  return new Promise(resolve => {
+    const grid = displayGrid();
+    if (!grid || !state.scale) { resolve(null); return; }
+    const img = renderGridCanvas(grid, state.scale, 'geo');
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = im.width; c.height = im.height;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(im, 0, 0);
+      const xy = (lat, lng) => [(lng - img.west) / (img.east - img.west) * c.width, (img.north - lat) / (img.north - img.south) * c.height];
+      const r = Math.max(4, c.width / 90);
+      activosActivos().forEach(o => {
+        const [x, y] = xy(o.lat, o.lng);
+        ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = '#64748b'; ctx.fill();
+      });
+      const [x, y] = xy(asset.lat, asset.lng);
+      ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, Math.PI * 2);
+      ctx.lineWidth = r * 0.5; ctx.strokeStyle = '#1d4ed8'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = '#1d4ed8'; ctx.fill();
+      resolve(c.toDataURL('image/png'));
+    };
+    im.onerror = () => resolve(null);
+    im.src = img.url;
+  });
+}
+
+async function generarFichaActivo(id) {
+  const a = state.assets.find(x => x.id === id);
+  if (!a) return;
+  const w = window.open('', '_blank');
+  if (!w) { showToast(t('Allow pop-ups to generate the factsheet.'), 'error'); return; }
+  w.document.write(`<p style="font-family:sans-serif;padding:24px">${t('Generating factsheet…')}</p>`);
+  try {
+    const data = await ensureProfileData();
+    const thumb = await mapThumbnail(a);
+    w.document.open();
+    w.document.write(buildFactsheetHTML(a, data, thumb));
+    w.document.close();
+  } catch (err) {
+    w.document.body.innerHTML = `<p style="font-family:sans-serif;padding:24px;color:#b91c1c">Error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function buildFactsheetHTML(a, data, thumb) {
+  const sc = getScenarios();
+  const meta = getVarMeta();
+  const date = new Date().toLocaleDateString(LOCALES[currentLang] || 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const vars = orderedVariables().filter(v => data[v]);
+  let hot = 0;
+  const rows = vars.map(v => {
+    const m = getVarMeta(v);
+    const vals = assetValues(data[v], a);
+    const p = hazardPercentile(data[v], 'B', vals.vB, m);
+    if (p != null && p >= 75) hot++;
+    const c = p == null ? '#e2e8f0' : `rgb(${interpRamp(RAMP_PCT, p / 100).join(',')})`;
+    const dColor = vals.diff == null ? '#64748b' : isWorse(vals.diff, m) ? '#b91c1c' : '#047857';
+    return `<tr>
+      <td><span class="tag ${m.type === 'Acute' ? 'acute' : 'chronic'}">${t(m.type)}</span></td>
+      <td><b>${escapeHtml(m.name)}</b></td>
+      <td class="muted">${escapeHtml(m.unit || t('index'))}</td>
+      <td class="num">${fmtNum(vals.vA)}</td>
+      <td class="num">${fmtNum(vals.vB)}</td>
+      <td class="num" style="color:${dColor}">${vals.diff == null ? '—' : (vals.diff > 0 ? '+' : '') + fmtNum(vals.diff)}</td>
+      <td><div class="bar"><div style="width:${p ?? 0}%;background:${c}"></div></div></td>
+      <td class="num">${p == null ? '—' : Math.round(p)}</td>
+    </tr>`;
+  }).join('');
+  const cell = a.matchB || a.matchA;
+
+  return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8">
+<title>${t('Hazard factsheet')} — ${escapeHtml(a.name)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; font-size: 11px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 3px solid #0f766e; padding-bottom: 8px; }
+  .brand { font-size: 10px; color:#0f766e; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  h1 { font-size: 22px; margin: 2px 0 0; }
+  .muted { color:#64748b; }
+  .grid { display:grid; grid-template-columns: 1.1fr 1fr; gap: 14px; margin-top: 12px; align-items:start; }
+  .card { border:1px solid #e2e8f0; border-radius:8px; padding:10px; }
+  .kpis { display:grid; grid-template-columns: repeat(3,1fr); gap:8px; margin-top: 8px; }
+  .kpi { background:#f8fafc; border-radius:6px; padding:8px; }
+  .kpi b { display:block; font-size:16px; margin-top:2px; }
+  table { width:100%; border-collapse: collapse; margin-top: 12px; }
+  th { text-align:left; font-size:9px; text-transform:uppercase; color:#475569; border-bottom:1.5px solid #cbd5e1; padding:5px 4px; }
+  td { padding:5px 4px; border-bottom:1px solid #eef2f7; vertical-align: middle; }
+  .num { text-align:right; font-family: "Courier New", monospace; }
+  .tag { font-size:8px; padding:1px 5px; border-radius:3px; font-weight:700; }
+  .acute { background:#fee2e2; color:#991b1b; } .chronic { background:#fef3c7; color:#92400e; }
+  .bar { height:7px; background:#f1f5f9; border-radius:2px; overflow:hidden; width:90px; }
+  .bar div { height:100%; }
+  img.map { display:block; width:100%; max-height:300px; object-fit:contain; background:#f1f5f9; border-radius:6px; border:1px solid #e2e8f0; image-rendering: pixelated; }
+  body { max-width: 190mm; margin: 0 auto; }
+  .notes { margin-top: 12px; font-size: 9px; color:#475569; line-height: 1.45; border-top:1px solid #e2e8f0; padding-top: 8px; }
+  .noprint { margin: 10px 0; } @media print { .noprint { display:none; } }
+  button { background:#1d4ed8; color:#fff; border:0; border-radius:6px; padding:7px 12px; font-weight:700; cursor:pointer; }
+</style></head><body>
+  <div class="noprint"><button onclick="print()">${t('Save as PDF / Print')}</button></div>
+  <div class="top">
+    <div>
+      <div class="brand">SEI Latin America · AI Climate Risk Portfolio Explorer</div>
+      <h1>${escapeHtml(a.name)}</h1>
+      <div class="muted">${t('Physical climate hazard factsheet')} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
+    </div>
+    <div class="muted" style="text-align:right">${date}<br>${escapeHtml(t(getSource().label))}</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="muted">${t('Comparison')}: <b>${escapeHtml(sc.A.label)}</b> (${escapeHtml(sc.A.note)}) vs <b>${escapeHtml(sc.B.label)}</b> (${escapeHtml(sc.B.note)})</div>
+      <div class="kpis">
+        <div class="kpi">${t('Indicators ≥ P75')} (${escapeHtml(sc.B.short)})<b>${hot} / ${vars.length}</b></div>
+        <div class="kpi">${escapeHtml(meta.short || state.variable)} · ${escapeHtml(sc.B.short)}<b>${fmtVal(a.vB, meta)}</b></div>
+        <div class="kpi">${t('Relative tier in portfolio')}<b>${a.tier && a.tier !== 'NA' ? t(a.tier) : '—'}</b></div>
+      </div>
+      <p class="muted" style="margin:8px 0 0">${t('Grid cell')}: ${cell ? `${cell.cellLat.toFixed(2)}, ${cell.cellLon.toFixed(2)} · ${t('{km} km from asset', { km: cell.distKm.toFixed(1) })}` : '—'} · ${t('resolution 0.5° (~55 km).')}</p>
+    </div>
+    <div class="card">
+      ${thumb ? `<img class="map" src="${thumb}" alt="Map">` : `<p class="muted">${t('Map unavailable')}</p>`}
+      <div class="muted" style="margin-top:4px">${escapeHtml(meta.name)} · ${escapeHtml(displayLabel())}. ${t('Blue: this asset; grey: other portfolio assets.')}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>${t('Type')}</th><th>${t('Indicator')}</th><th>${t('Unit')}</th><th class="num">${escapeHtml(sc.A.short)}</th><th class="num">${escapeHtml(sc.B.short)}</th><th class="num">Δ</th><th>${t('Hazard percentile')} (${escapeHtml(sc.B.short)})</th><th class="num">P</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="notes">
+    ${state.source === 'github' ? t('factsheet.read', { p: REFERENCE_PERIOD }) : t('factsheet.read.api')}
+    ${t('factsheet.read2')}<br>
+    ${t('factsheet.limits')}<br>
+    ${t('factsheet.data')}
+  </div>
+  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));<\/script>
+</body></html>`;
+}
+
+// =========================================================================
+// 20. MODAL "ABOUT THE DATA" (ficha metodológica)
+// =========================================================================
+function openAboutModal() {
+  document.getElementById('about-modal')?.remove();
+  const sc = SOURCES.github.scenarios();
+  const rows = Object.keys(VARIABLES).map(k => {
+    const m = getVarMeta(k);
+    return `
+    <tr class="border-b border-slate-800">
+      <td class="py-1 pr-2 font-mono text-slate-400">${escapeHtml(m.short)}</td>
+      <td class="py-1 pr-2 text-slate-200">${escapeHtml(m.name)}</td>
+      <td class="py-1 pr-2"><span class="text-[10px] ${m.type === 'Acute' ? 'text-rose-300' : 'text-amber-300'}">${t(m.type)}</span></td>
+      <td class="py-1 pr-2 text-slate-400">${escapeHtml(m.unit || t('index'))}${m.relative ? ` (${t('rel.')})` : ''}</td>
+      <td class="py-1 text-slate-400">${m.worse === 'high' ? '↑' : '↓'} ${t('more hazard')}</td>
+    </tr>`;
+  }).join('');
+  const vars = { a: sc.A.label, b: sc.B.label, p: REFERENCE_PERIOD, y: new Date().getFullYear() };
+
+  const modal = document.createElement('div');
+  modal.id = 'about-modal';
+  modal.className = 'fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="bg-slate-900 text-slate-300 border border-slate-700 rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-circle-info text-blue-400"></i>
+          <h2 class="text-sm font-bold text-white">${t('About the data & methodology')}</h2>
+        </div>
+        <button onclick="document.getElementById('about-modal').remove()" class="text-slate-400 hover:text-white text-sm px-2">✕</button>
+      </div>
+      <div class="p-5 overflow-y-auto custom-scrollbar text-xs leading-relaxed space-y-4">
+        <div class="bg-amber-500/10 border-l-4 border-amber-500 p-2.5 rounded text-amber-100">${t('about.warning')}</div>
+        <section><h3 class="text-white font-bold mb-1">${t('Source')}</h3><p>${t('about.source')}</p></section>
+        <section><h3 class="text-white font-bold mb-1">${t('Scenarios')}</h3><p>${t('about.scenarios', vars)}</p></section>
+        <section>
+          <h3 class="text-white font-bold mb-1">${t('Method')}</h3>
+          <ul class="list-disc pl-5 space-y-0.5">
+            <li>${t('about.method.resolution')}</li>
+            <li>${t('about.method.tier')}</li>
+            <li>${t('about.method.percentile')}</li>
+            <li>${t('about.method.colours')}</li>
+          </ul>
+        </section>
+        <section>
+          <h3 class="text-white font-bold mb-1">${t('Indicators')}</h3>
+          <table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500 border-b border-slate-700">
+            <th class="py-1 pr-2">${t('Code')}</th><th class="py-1 pr-2">${t('Indicator')}</th><th class="py-1 pr-2">${t('Type')}</th><th class="py-1 pr-2">${t('Unit (Δ)')}</th><th class="py-1">${t('Direction')}</th></tr></thead>
+            <tbody>${rows}</tbody></table>
+        </section>
+        <section>
+          <h3 class="text-white font-bold mb-1">${t('Limitations')}</h3>
+          <ul class="list-disc pl-5 space-y-0.5">
+            <li>${t('about.limits.models')}</li>
+            <li>${t('about.limits.resolution')}</li>
+            <li>${t('about.limits.planned')}</li>
+          </ul>
+        </section>
+        <p class="text-[10px] text-slate-500">${t('about.citation', vars)}</p>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+
+// =========================================================================
+// 21. IDIOMA (i18n) Y TEMA CLARO / OSCURO
+// =========================================================================
+function storageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function storageSet(k, v) { try { localStorage.setItem(k, v); } catch { /* modo privado */ } }
+
+function initLanguage(sharedLang) {
+  const sel = document.getElementById('lang-selector');
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const lang = sharedLang || storageGet('ace-lang') || (LANGS[browser] ? browser : 'en');
+  if (sel) {
+    sel.innerHTML = Object.entries(LANGS).map(([k, v]) => `<option value="${k}">${k.toUpperCase()} · ${v}</option>`).join('');
+    sel.addEventListener('change', e => setLanguage(e.target.value));
+  }
+  setLanguage(LANGS[lang] ? lang : 'en', { initial: true });
+}
+
+function setLanguage(lang, opts = {}) {
+  if (!LANGS[lang]) return;
+  currentLang = lang;
+  storageSet('ace-lang', lang);
+  document.documentElement.lang = lang;
+  const sel = document.getElementById('lang-selector');
+  if (sel) sel.value = lang;
+  translateStatic(document.body);
+  applyTheme(document.documentElement.dataset.theme || 'dark', false);
+  if (opts.initial) return; // el resto se pinta en la carga inicial
+  refreshDynamicUI();
+}
+
+/** Vuelve a pintar todo lo que se genera desde JS */
+function refreshDynamicUI() {
+  const srcSel = document.getElementById('climate-source');
+  if (srcSel) {
+    const v = srcSel.value;
+    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${t(s.label)}</option>`).join('');
+    srcSel.value = v;
+  }
+  poblarSelectorVariables();
+  renderScenarioButtons();
+  renderizarTarjetasMapasBase();
+  renderLegend();
+  renderActiveLayers();
+  renderPortfolio();
+  if (lastClimateStatus) setClimateStatus(...lastClimateStatus);
+  if (!activeDrawTool) setStatusDibujo(t('No active tool'), 'text-[9px] text-slate-400 italic px-1');
+  selectStep(langGraphState.currentStep);
+  if (cesiumPopupAssetId) {
+    const a = state.assets.find(x => x.id === cesiumPopupAssetId);
+    if (a) document.getElementById('cesium-popup-content').innerHTML = assetPopupHTML(a);
+  } else cerrarCesiumPopup();
+  leafletMap?.closePopup();
+  if (document.getElementById('about-modal')) openAboutModal();
+}
+
+function isLightTheme() { return document.documentElement.dataset.theme === 'light'; }
+
+function initTheme() {
+  applyTheme(storageGet('ace-theme') === 'light' ? 'light' : 'dark', false);
+  document.getElementById('theme-toggle')?.addEventListener('click', () => applyTheme(isLightTheme() ? 'dark' : 'light'));
+}
+
+function applyTheme(theme, rerender = true) {
+  document.documentElement.dataset.theme = theme;
+  storageSet('ace-theme', theme);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.className = `fa-solid ${theme === 'light' ? 'fa-sun' : 'fa-moon'} text-xs`;
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.title = t(theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+  if (rerender) { renderPortfolio(); renderLegend(); }
 }
