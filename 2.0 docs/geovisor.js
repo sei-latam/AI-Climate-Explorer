@@ -46,12 +46,12 @@ const VARIABLES = {
  */
 const SOURCES = {
   github: {
-    label: 'CIE v2 · Warming levels (GitHub repo)',
+    label: 'CIE v2 · Warming levels (GitHub)',
     variables: ['labour-productivity-loss', 'HI-danger', 'TXx', 'tasAdjust', 'consecutive_dry_days', 'spei_gamma_12',
                 'prAdjust', 'rx1day', 'rx5day', 'dis', 'wsi', 'fwixd'],
     scenarios: () => ({
-      A: { code: 'wl1p5', label: 'WL 1.5°C', short: '1.5°C', note: '≈ RCP2.6' },
-      B: { code: 'wl3p0', label: 'WL 3.0°C', short: '3.0°C', note: '≈ RCP8.5' }
+      A: { code: 'wl1p5', label: '1.5°C', short: '1.5°C', note: '≈ RCP2.6' },
+      B: { code: 'wl3p0', label: '3.0°C', short: '3.0°C', note: '≈ RCP8.5' }
     }),
     url: (variable, sc) => `${GITHUB_DATA_BASE}/${encodeURIComponent(variable)}_${sc.code}.csv`,
     parse: text => parseLongCSV(text)
