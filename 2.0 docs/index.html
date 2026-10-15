@@ -45,9 +45,6 @@
                     3D 
                 </button>
             </div>
-            <button onclick="openAboutModal()" title="About the data & methodology" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white whitespace-nowrap hover:bg-[#0f172a]/50 transition-all">
-                <i class="fa-solid fa-circle-info text-[11px] text-blue-400"></i> About the data
-            </button>
             <div class="hidden lg:flex items-center border-l border-r border-slate-800 px-2">
                 <a href="https://dash.cloudflare.com/login" target="_blank" class="px-3 py-1.5 rounded-lg text-[12px] font-bold text-white hover:bg-[#0f172a]/50 transition-all no-underline flex items-center gap-1.5">
                     <i class="fas fa-sign-in-alt text-[10px]"></i> Administration
@@ -55,7 +52,7 @@
             </div>
           <div class="flex items-center gap-2 tracking-tight">
             <select id="lang-selector" class="bg-[#0f172a]/50 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 outline-none">
-              <option value="en">EN · English</option>
+              <option value="en">🇺🇸 EN</option>
             </select>
             <button id="theme-toggle" title="Toggle theme" class="w-8 h-8 rounded-lg bg-[#0f172a]/20 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center">
               <i id="theme-icon" class="fa-solid fa-moon text-xs"></i>
@@ -199,8 +196,8 @@
 
     <!-- Pestañas para cambiar entre DD y GMS -->
     <div class="flex bg-slate-900 p-0.5 rounded border border-slate-800 text-[10px]">
-      <button id="tab-coord-dd" onclick="switchCoordType('dd')" class="flex-1 py-0.5 font-bold rounded bg-blue-600 text-white transition-colors">Decimal (DD)</button>
-      <button id="tab-coord-gms" onclick="switchCoordType('gms')" class="flex-1 py-0.5 text-slate-400 hover:text-white transition-colors">DMS</button>
+      <button id="tab-coord-dd" onclick="switchCoordType('dd')" class="flex-1 py-0.5 font-bold rounded bg-blue-600 text-white transition-colors">Decimals (DD)</button>
+      <button id="tab-coord-gms" onclick="switchCoordType('gms')" class="flex-1 py-0.5 text-slate-400 hover:text-white transition-colors">GMS (DMS)</button>
     </div>
 
     <!-- MODO 1: GRADOS DECIMALES (DD) -->
@@ -271,7 +268,7 @@
           <label for="input-vector-file" class="mt-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors shadow">
             Browse
           </label>
-          <input type="file" id="input-vector-file" accept=".csv,.geojson,.json" class="hidden" onchange="handleFileUpload(event)">
+          <input type="file" id="input-vector-file" accept=".csv,.txt,.geojson,.json" class="hidden" onchange="handleFileUpload(event)">
         </div>
       </div>
     </div>
@@ -310,7 +307,7 @@
       <div id="body-panel-herramientas" class="p-2 hidden flex flex-col gap-2">
         <!-- Estado Activo -->
         <div id="statusDibujo" class="text-[9px] text-slate-400 italic px-1">
-          No active tool
+          No active analysis tools
         </div>
 
         <!-- Grilla de Botones de Herramientas -->
@@ -425,7 +422,7 @@
           <div class="w-5 h-5 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
             <i class="fa-solid fa-triangle-exclamation text-[10px]"></i>
           </div>
-          <span class="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">Exposure Ranking</span>
+          <span class="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">Risk Analysis</span>
         </div>
         <i id="icon-toggle-riesgo" class="fa-solid fa-chevron-down text-[10px] inline-block text-slate-400 group-hover:text-blue-400 transition-transform duration-200"></i>
       </button>
@@ -434,14 +431,14 @@
         <div class="space-y-1.5">
           <div class="p-2 bg-slate-900/60 border border-rose-500/20 rounded-lg flex items-center justify-between">
             <div class="flex flex-col">
-              <span id="risk-label-max" class="text-[9px] font-bold text-rose-400 uppercase tracking-wider">Highest exposure</span>
+              <span id="risk-label-max" class="text-[9px] font-bold text-rose-400 uppercase tracking-wider">Highest Exposure</span>
               <span class="text-xs font-bold text-white" id="plant-max-exposure">—</span>
             </div>
             <span id="risk-max-value" class="text-xs font-mono font-bold text-rose-400">—</span>
           </div>
           <div class="p-2 bg-slate-900/60 border border-emerald-500/20 rounded-lg flex items-center justify-between">
             <div class="flex flex-col">
-              <span id="risk-label-min" class="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Lowest exposure</span>
+              <span id="risk-label-min" class="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Most Resilient</span>
               <span class="text-xs font-bold text-white" id="plant-resilient">—</span>
             </div>
             <span id="risk-min-value" class="text-xs font-mono font-bold text-emerald-400">—</span>
@@ -469,8 +466,8 @@
         <div class="flex items-center justify-between gap-2">
           <span class="text-[10px] text-slate-400">Sort by:</span>
           <select id="select-sort-assets" class="bg-slate-900 border border-slate-700/80 text-slate-200 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-blue-500">
-            <option value="risk-desc">Highest exposure</option>
-            <option value="risk-asc">Lowest exposure</option>
+            <option value="risk-desc">Highest risk</option>
+            <option value="risk-asc">Lowest risk</option>
             <option value="alpha">Name (A-Z)</option>
           </select>
         </div>
@@ -484,8 +481,8 @@
             <thead class="text-[9px] uppercase bg-slate-900/90 text-slate-400 sticky top-0">
               <tr>
                 <th scope="col" class="py-1 px-1.5 rounded-l">Asset</th>
-                <th id="th-col-a" scope="col" class="py-1 px-1">A</th>
-                <th id="th-col-b" scope="col" class="py-1 px-1">B</th>
+                <th id="th-col-a" scope="col" class="py-1 px-1">2030</th>
+                <th id="th-col-b" scope="col" class="py-1 px-1">2050</th>
                 <th id="th-col-diff" scope="col" class="py-1 px-1 text-right rounded-r">Δ</th>
               </tr>
             </thead>
@@ -494,53 +491,6 @@
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-
-    <!-- 4. MULTI-HAZARD PROFILE -->
-    <div class="bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden transition-all">
-      <button onclick="toggleWidget('body-panel-perfil', 'icon-toggle-perfil')" class="w-full bg-slate-900/80 p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors group">
-        <div class="flex items-center gap-2">
-          <div class="w-5 h-5 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <i class="fa-solid fa-table-cells text-[10px]"></i>
-          </div>
-          <span class="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">Multi-hazard Profile</span>
-        </div>
-        <i id="icon-toggle-perfil" class="fa-solid fa-chevron-down text-[10px] inline-block text-slate-400 group-hover:text-blue-400 transition-transform duration-200"></i>
-      </button>
-      <div id="body-panel-perfil" class="p-2 space-y-2">
-        <div class="flex bg-slate-900 p-0.5 rounded border border-slate-800 text-[10px]">
-          <button id="profile-tab-matrix" onclick="setProfileTab('matrix')" class="flex-1 py-0.5 rounded bg-blue-600 text-white font-bold">Portfolio matrix</button>
-          <button id="profile-tab-asset" onclick="setProfileTab('asset')" class="flex-1 py-0.5 rounded text-slate-400 hover:text-white">Asset detail</button>
-        </div>
-        <div id="profile-content" data-no-i18n><p class="text-[9px] text-slate-500 py-3 text-center">Loading…</p></div>
-      </div>
-    </div>
-
-    <!-- 5. EXPORT & SHARE -->
-    <div class="bg-slate-950/40 border border-slate-800/80 rounded-xl overflow-hidden transition-all">
-      <button onclick="toggleWidget('body-panel-export', 'icon-toggle-export')" class="w-full bg-slate-900/80 p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors group">
-        <div class="flex items-center gap-2">
-          <div class="w-5 h-5 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <i class="fa-solid fa-file-export text-[10px]"></i>
-          </div>
-          <span class="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">Export & Share</span>
-        </div>
-        <i id="icon-toggle-export" class="fa-solid fa-chevron-down text-[10px] inline-block text-slate-400 group-hover:text-blue-400 transition-transform duration-200"></i>
-      </button>
-      <div id="body-panel-export" class="p-2 space-y-1.5">
-        <div class="grid grid-cols-2 gap-1.5">
-          <button onclick="exportPortfolio('xlsx')" class="p-2 bg-slate-900/90 border border-slate-800/80 hover:border-emerald-500/50 rounded-lg text-slate-300 hover:text-white text-[10px] flex flex-col items-center gap-1 transition-all cursor-pointer">
-            <i class="fa-solid fa-file-excel text-emerald-400"></i> Excel (all hazards)
-          </button>
-          <button onclick="exportPortfolio('csv')" class="p-2 bg-slate-900/90 border border-slate-800/80 hover:border-blue-500/50 rounded-lg text-slate-300 hover:text-white text-[10px] flex flex-col items-center gap-1 transition-all cursor-pointer">
-            <i class="fa-solid fa-file-csv text-blue-400"></i> CSV (long format)
-          </button>
-        </div>
-        <button onclick="copyShareLink()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-1.5 rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-          <i class="fa-solid fa-link text-[9px]"></i> Copy share link
-        </button>
-        <p class="text-[8px] text-slate-500 leading-snug px-0.5">Per-asset PDF factsheets are available from each asset's pop-up or the Asset detail tab. The link stores the assets, indicator and scenario.</p>
       </div>
     </div>
 
@@ -559,7 +509,6 @@
       <div class="flex flex-col">
         <div class="flex items-center gap-1.5">
           <span class="text-xs font-bold text-white tracking-wide">AI Agent/LLM Analysis</span>
-          <span class="text-[8px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-300 font-bold tracking-wider" title="Agents are not connected yet. Responses are simulated using the portfolio data on screen.">PREVIEW · DEMO</span>
         </div>
       </div>
     </div>
@@ -575,41 +524,31 @@
         <div class="grid grid-cols-4 gap-1.5">
           <button id="step-btn-1" onclick="selectStep(1)" class="p-1.5 rounded-lg border bg-blue-500/20 border-blue-500/60 text-blue-300 flex items-center justify-center gap-1.5 cursor-pointer">
             <span id="step-icon-1"><i class="fa-solid fa-brain text-[10px] animate-pulse"></i></span>
-            <span class="text-[9px] font-bold">1. Data</span>
+            <span class="text-[9px] font-bold">1. Selection</span>
           </button>
           <button id="step-btn-2" onclick="selectStep(2)" disabled class="p-1.5 rounded-lg border bg-slate-900/50 border-slate-800 text-slate-600 flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed">
             <span id="step-icon-2"><i class="fa-solid fa-lock text-[10px]"></i></span>
-            <span class="text-[9px] font-bold">2. Risk</span>
+            <span class="text-[9px] font-bold">2. Risk assessment</span>
           </button>
           <button id="step-btn-3" onclick="selectStep(3)" disabled class="p-1.5 rounded-lg border bg-slate-900/50 border-slate-800 text-slate-600 flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed">
             <span id="step-icon-3"><i class="fa-solid fa-lock text-[10px]"></i></span>
-            <span class="text-[9px] font-bold">3. Report</span>
+            <span class="text-[9px] font-bold">3. Response &amp; report</span>
           </button>
           <button id="step-btn-4" onclick="selectStep(4)" disabled class="p-1.5 rounded-lg border bg-slate-900/50 border-slate-800 text-slate-600 flex items-center justify-center gap-1.5 opacity-50 cursor-not-allowed">
             <span id="step-icon-4"><i class="fa-solid fa-lock text-[10px]"></i></span>
-            <span class="text-[9px] font-bold">4. Funds</span>
+            <span class="text-[9px] font-bold">4. Delivery &amp; feedback</span>
           </button>
         </div>
       </div>
 
-      <div id="chat-conversation-body" class="p-3.5 space-y-3.5 max-h-64 overflow-y-auto custom-scrollbar bg-slate-950/60 text-xs">
-        <div class="flex gap-2.5">
-          <div class="w-7 h-7 rounded-lg bg-amber-950/60 border border-amber-500/40 flex items-center justify-center shrink-0">
-            <i class="fa-solid fa-flask text-amber-300 text-xs"></i>
-          </div>
-          <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[90%] text-slate-300 text-[11px] leading-relaxed space-y-1.5">
-            <p class="text-amber-300 font-bold text-[10px]">Preview of the planned AI agent pipeline</p>
-            <p data-i18n-html="ai.intro"></p>
-            <p class="text-slate-500">Try: “Summarise the hazard data for my portfolio”.</p>
-          </div>
-        </div>
+      <div id="chat-conversation-body" data-no-i18n class="p-3.5 space-y-3.5 max-h-72 overflow-y-auto custom-scrollbar bg-slate-950/60 text-xs">
       </div>
 
       <div class="p-2.5 bg-slate-900/90 border-t border-slate-800/80">
         <div class="relative flex items-center">
           <input type="text" id="user-chat-input" 
             onkeypress="if(event.key === 'Enter') executeCurrentStep()" 
-            placeholder="Request climate data grid extraction..." 
+            placeholder="Ask about the climate risk of your portfolio..." 
             class="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-2 px-3.5 pr-24 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-green-500/50 transition-all shadow-inner">
           
           <button id="send-chat-btn" onclick="executeCurrentStep()" class="absolute right-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold transition-all shadow-md flex items-center gap-1.5">
@@ -656,9 +595,8 @@
     <div class="p-6 overflow-y-auto space-y-4 text-sm leading-relaxed text-slate-300 text-justify">
       <p class="font-bold text-white text-center">Please read the following terms and conditions carefully</p>
       <p data-i18n-html="welcome.p1"></p>
-      <p class="text-xs" data-i18n-html="welcome.p2"></p>
       <div class="bg-slate-800/50 p-2 rounded-lg border-l-4 border-blue-500 text-slate-300 text-xs">
-        SEI-LA is not responsible for the results and/or decisions derived from the use of data or combinations of layers displayed on the platform.
+        SEI is not responsible for the results and/or decisions derived from the use of data or combinations of layers displayed on the platform.
       </div>
     </div>
     <div class="px-6 py-4 border-t border-slate-800 bg-slate-950/50 flex justify-end gap-3">

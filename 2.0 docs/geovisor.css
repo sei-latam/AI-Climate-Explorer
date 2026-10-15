@@ -92,17 +92,6 @@
 }
 .leaflet-tooltip.asset-label::before { display: none; }
 
-/* Matriz multi-amenaza: encabezados compactos */
-.profile-vhead {
-  font-size: 7px;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  line-height: 1.1;
-  text-align: center;
-}
-#profile-content td { height: 14px; min-width: 15px; }
-
-
 /* =====================================================================
    TEMA CLARO — reasigna las clases Tailwind del tema oscuro
    (se activa con <html data-theme="light">)
@@ -146,3 +135,8 @@ html[data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb { background
 html[data-theme="light"] #welcome-modal > div, html[data-theme="light"] #about-modal > div { background-color: #ffffff !important; }
 html[data-theme="light"] header { box-shadow: 0 10px 25px -10px rgba(15,23,42,0.25) !important; }
 html[data-theme="light"] .leaflet-container { background: #e5e7eb; }
+html[data-theme="light"] :is([class^="bg-sky-950"], [class*=" bg-sky-950"], [class^="bg-amber-950"], [class*=" bg-amber-950"], [class^="bg-emerald-950"], [class*=" bg-emerald-950"], [class^="bg-violet-950"], [class*=" bg-violet-950"]) { background-color: #f1f5f9 !important; }
+html[data-theme="light"] [class~="text-sky-300"], html[data-theme="light"] [class~="text-sky-400"] { color: #0369a1 !important; }
+html[data-theme="light"] [class~="text-violet-400"] { color: #6d28d9 !important; }
+html[data-theme="light"] [class~="text-emerald-300"] { color: #047857 !important; }
+html[data-theme="light"] pre[class*="text-emerald-300"] { color: #065f46 !important; }
