@@ -44,23 +44,16 @@ const VARIABLES = {
  * Fuentes. Cada fuente define sus variables, dos escenarios a comparar (A y B)
  * y cómo construir la URL y parsear la respuesta.
  */
+const ALL_VARIABLES = ['labour-productivity-loss', 'HI-danger', 'TXx', 'tasAdjust', 'consecutive_dry_days', 'spei_gamma_12',
+                       'prAdjust', 'rx1day', 'rx5day', 'dis', 'wsi', 'fwixd'];
+
 const SOURCES = {
-  github: {
-    label: 'CIE v2 · Warming levels (GitHub)',
-    variables: ['labour-productivity-loss', 'HI-danger', 'TXx', 'tasAdjust', 'consecutive_dry_days', 'spei_gamma_12',
-                'prAdjust', 'rx1day', 'rx5day', 'dis', 'wsi', 'fwixd'],
-    scenarios: () => ({
-      A: { code: 'wl1p5', label: '1.5°C', short: '1.5°C', note: '≈ RCP2.6' },
-      B: { code: 'wl3p0', label: '3.0°C', short: '3.0°C', note: '≈ RCP8.5' }
-    }),
-    url: (variable, sc) => `${GITHUB_DATA_BASE}/${encodeURIComponent(variable)}_${sc.code}.csv`,
-    parse: text => parseLongCSV(text)
-  },
+  // Fuente principal: API en vivo de CIE v2 (RCP + año). CIE convierte cada RCP/año en un nivel de calentamiento global.
   cie_api: {
     label: 'CIE v2 · Live API (RCP / year)',
-    variables: ['labour-productivity-loss', 'HI-danger', 'consecutive_dry_days', 'prAdjust', 'rx5day', 'tasAdjust', 'TXx'],
+    variables: ALL_VARIABLES,
     scenarios: () => {
-      const rcp = (state.cieRcp || 'rcp45').toUpperCase().replace('RCP', 'RCP ');
+      const rcp = { rcp26: 'RCP 2.6', rcp45: 'RCP 4.5', rcp85: 'RCP 8.5' }[state.cieRcp] || 'RCP 4.5';
       return {
         A: { code: '2030', label: `${rcp} · 2030`, short: '2030', note: rcp },
         B: { code: '2050', label: `${rcp} · 2050`, short: '2050', note: rcp }
@@ -68,6 +61,17 @@ const SOURCES = {
     },
     url: (variable, sc) => `${CIE_API_BASE}?iso=COL&var=${encodeURIComponent(variable)}&aggregation_spatial=gdp&season=annual&format=csv&scenarios=${state.cieRcp}&years=${sc.code}`,
     parse: text => parseCieWideCSV(text)
+  },
+  // Respaldo: mismos datos de CIE descargados por nivel de calentamiento (1.5 °C y 3.0 °C) en el repo de GitHub
+  github: {
+    label: 'CIE v2 · Warming levels (GitHub backup)',
+    variables: ALL_VARIABLES,
+    scenarios: () => ({
+      A: { code: 'wl1p5', label: '+1.5°C', short: '+1.5°C', note: 'GWL' },
+      B: { code: 'wl3p0', label: '+3.0°C', short: '+3.0°C', note: 'GWL' }
+    }),
+    url: (variable, sc) => `${GITHUB_DATA_BASE}/${encodeURIComponent(variable)}_${sc.code}.csv`,
+    parse: text => parseLongCSV(text)
   }
 };
 
@@ -94,7 +98,7 @@ const COLOMBIA_LAT = 4.5709;
 const COLOMBIA_LON = -74.2973;
 
 const state = {
-  source: 'github',
+  source: 'cie_api',
   variable: 'labour-productivity-loss',
   display: 'B',           // 'A' | 'B' | 'DIFF' -> lo que se pinta en la grilla
   cieRcp: 'rcp45',
@@ -205,6 +209,8 @@ const BASEMAPS_3D = {
 // 4. INICIALIZACIÓN
 // =========================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  initTheme();
+  initLanguage();
   initClock();
   initLeaflet();
   initOpacitySlider();
@@ -218,6 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   DEFAULT_ASSETS.forEach(a => agregarPuntoAlSistema(a.name, a.lat, a.lng, 'Argos', { silent: true }));
   finalizarCargaMasiva();
+  renderAgentIntro();
 
   loadClimateData();
 });
@@ -336,9 +343,9 @@ function renderizarTarjetasMapasBase() {
       isActive ? 'border-2 border-blue-500 bg-blue-950/30 active-basemap' : 'border border-slate-800 bg-slate-900/90 hover:border-slate-700 hover:bg-slate-800/50'}`;
     btn.innerHTML = `
       <div class="w-full h-14 rounded-lg overflow-hidden border border-slate-700/60 mb-1.5 relative">
-        <img src="${item.thumb}" alt="${item.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <img src="${item.thumb}" alt="${escapeHtml(t(item.name))}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
       </div>
-      <span class="text-[10px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}">${item.name}</span>`;
+      <span class="text-[10px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}">${escapeHtml(t(item.name))}</span>`;
     container.appendChild(btn);
   });
 }
@@ -504,7 +511,7 @@ function buscarSugerencias() {
     box.innerHTML = results.map((r, i) => `
       <div class="flex items-center justify-between gap-2 px-3 py-2 hover:bg-slate-800/70">
         <button class="text-left truncate flex-1 cursor-pointer" onclick="seleccionarSugerencia(${i}, false)">${escapeHtml(r.display_name)}</button>
-        <button title="Add as asset" class="text-blue-400 hover:text-blue-300 shrink-0 cursor-pointer" onclick="seleccionarSugerencia(${i}, true)"><i class="fa-solid fa-plus text-[10px]"></i></button>
+        <button title="${t('Add as asset')}" class="text-blue-400 hover:text-blue-300 shrink-0 cursor-pointer" onclick="seleccionarSugerencia(${i}, true)"><i class="fa-solid fa-plus text-[10px]"></i></button>
       </div>`).join('');
     box.dataset.results = JSON.stringify(results.map(r => ({ name: r.display_name, lat: +r.lat, lng: +r.lon })));
     box.classList.remove('hidden');
@@ -536,7 +543,7 @@ async function ejecutarBusquedaDirecta() {
   const results = await geocodificar(q);
   document.getElementById('searchSuggestions')?.classList.add('hidden');
   if (results[0]) volarA(+results[0].lat, +results[0].lon);
-  else alert('No se encontraron resultados para la búsqueda.');
+  else alert(t('No results found for this search.'));
 }
 
 // =========================================================================
@@ -565,7 +572,7 @@ function parseLongCSV(text) {
   const iLat = headers.findIndex(h => h === 'lat' || h === 'latitude' || h === 'y');
   const iLon = headers.findIndex(h => h === 'lon' || h === 'lng' || h === 'longitude' || h === 'x');
   const iVal = headers.findIndex(h => h === 'value' || h === 'valor');
-  if (iLat < 0 || iLon < 0 || iVal < 0) throw new Error('El CSV no tiene columnas lat, lon, value.');
+  if (iLat < 0 || iLon < 0 || iVal < 0) throw new Error(t('The CSV has no lat, lon, value columns.'));
 
   const points = [];
   for (let i = 1; i < lines.length; i++) {
@@ -576,35 +583,44 @@ function parseLongCSV(text) {
   return points;
 }
 
-/** CSV ancho de la API CIE v2 (10 líneas de metadatos, luego matriz lat x lon) */
+/** CSV ancho de la API CIE v2: metadatos (clave,valor) y luego la matriz lat x lon */
 function parseCieWideCSV(text) {
-  const lines = text.trim().replace(/\r/g, '').split('\n');
-  // Buscar la fila de cabecera de la matriz (después de los metadatos)
-  let start = lines.findIndex((l, i) => i >= 5 && l.split(',').length > 3 && l.split(',').slice(1).every(v => isFinite(parseFloat(v))));
-  if (start < 0) start = 10;
-  const headers = lines[start].split(',').map(h => h.trim());
-  const lons = headers.slice(1).map(Number);
+  const lines = text.replace(/\r/g, '').split('\n');
+  let start = lines.findIndex(l => /^\s*"?lat\b/i.test(l));
+  if (start < 0) start = lines.findIndex((l, i) => i >= 5 && l.split(',').length > 3 && l.split(',').slice(1).every(v => isFinite(parseFloat(v))));
+  if (start < 0) throw new Error('Unexpected CIE API format');
+  const meta = {};
+  lines.slice(0, start).forEach(l => {
+    const [k, v] = l.split(',');
+    if (k && v !== undefined) meta[k.replace(/[:"]/g, '').trim().toLowerCase()] = v.trim();
+  });
+  const lons = lines[start].split(',').slice(1).map(h => Number(h.trim()));
   const points = [];
   for (let i = start + 1; i < lines.length; i++) {
     const cols = lines[i].split(',');
     const lat = Number(cols[0]);
-    if (!isFinite(lat)) continue;
+    if (cols[0].trim() === '' || !isFinite(lat)) continue;
     for (let j = 1; j < cols.length; j++) {
-      const v = cols[j].trim();
+      const v = (cols[j] || '').trim();
       if (v === '' || v.toLowerCase() === 'nan') continue;
       const value = Number(v);
       if (isFinite(value) && isFinite(lons[j - 1])) points.push({ lat, lon: lons[j - 1], value });
     }
   }
+  const wl = parseFloat(meta['warming level']);
+  points.meta = { warmingLevel: isFinite(wl) ? wl : null, reference: parseFloat(meta.reference) || null };
   return points;
 }
 
 async function fetchPoints(url, parser) {
   if (!csvCache.has(url)) {
-    const p = fetch(url).then(async res => {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+    const p = fetch(url, ctrl ? { signal: ctrl.signal } : undefined).then(async res => {
+      clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
       const pts = parser(await res.text());
-      if (!pts.length) throw new Error(`Sin datos válidos en ${url}`);
+      if (!pts.length) throw new Error(t('No valid data in {url}', { url }));
       return pts;
     });
     p.catch(() => csvCache.delete(url)); // permitir reintento
@@ -684,7 +700,11 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 function getSource() { return SOURCES[state.source]; }
 function getScenarios() { return getSource().scenarios(); }
-function getVarMeta(v = state.variable) { return VARIABLES[v] || { name: v, unit: '', worse: 'high', desc: '' }; }
+function getVarMeta(v = state.variable) {
+  const m = VARIABLES[v];
+  if (!m) return { name: v, unit: '', worse: 'high', desc: '' };
+  return { ...m, name: t(m.name), desc: t(m.desc), unit: m.unit ? t(m.unit) : '' };
+}
 
 /** Carga los dos escenarios de la variable activa y refresca todo */
 async function loadClimateData() {
@@ -694,7 +714,7 @@ async function loadClimateData() {
   const meta = getVarMeta();
 
   state.loading = true;
-  setClimateStatus(`<i class="fa-solid fa-spinner animate-spin"></i> Loading ${meta.name} (${sc.A.label} / ${sc.B.label})…`, 'info');
+  setClimateStatus(() => `<i class="fa-solid fa-spinner animate-spin"></i> ${t('Loading {name} ({a} / {b})…', { name: getVarMeta().name, a: sc.A.label, b: sc.B.label })}`, 'info');
 
   try {
     const [ptsA, ptsB] = await Promise.all([
@@ -705,15 +725,31 @@ async function loadClimateData() {
 
     state.grids.A = buildGrid(ptsA);
     state.grids.B = buildGrid(ptsB);
+    state.wl = { A: ptsA.meta?.warmingLevel ?? null, B: ptsB.meta?.warmingLevel ?? null };
     state.grids.DIFF = diffGrid(state.grids.A, state.grids.B);
 
     recalcularActivos();
     renderClimateLayer();
     renderPortfolio();
-    setClimateStatus(`<i class="fa-solid fa-circle-check"></i> ${ptsA.length} / ${ptsB.length} grid cells · res ${state.grids.A.resLat}°`, 'ok');
+    setClimateStatus(() => {
+      const wl = state.source === 'cie_api' && state.wl?.A != null && state.wl?.B != null
+        ? ` · ${t('global warming')} +${state.wl.A}°C / +${state.wl.B}°C` : '';
+      return `<i class="fa-solid fa-circle-check"></i> ${t('{a} / {b} grid cells · res {res}°', { a: ptsA.length, b: ptsB.length, res: state.grids.A?.resLat })}${wl}`;
+    }, 'ok');
   } catch (err) {
     if (token !== state.loadToken) return;
     console.error(err);
+    // Respaldo automático: si la API en vivo no responde desde el navegador, usar los mismos datos CIE de GitHub
+    if (state.source === 'cie_api' && !state.fallbackUsed) {
+      state.fallbackUsed = true;
+      state.source = 'github';
+      const srcSel = document.getElementById('climate-source');
+      if (srcSel) srcSel.value = 'github';
+      actualizarOpcionesFuente();
+      if (typeof showToast === 'function') showToast(t('The live CIE API did not respond. Showing the same CIE data from the GitHub backup.'), 'error');
+      loadClimateData();
+      return;
+    }
     state.grids = { A: null, B: null, DIFF: null };
     recalcularActivos();
     renderClimateLayer();
@@ -721,7 +757,7 @@ async function loadClimateData() {
     const help = src.missingHelp || (state.source === 'cie_api'
       ? 'The live CIE API may block browser requests (CORS). Use the GitHub source or a proxy.'
       : 'Check your connection or the file name in the repository.');
-    setClimateStatus(`<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(err.message)}<br><span class="text-slate-400">${help}</span>`, 'error');
+    setClimateStatus(() => `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(err.message)}<br><span class="text-slate-400">${t(help)}</span>`, 'error');
   } finally {
     if (token === state.loadToken) state.loading = false;
   }
@@ -916,7 +952,7 @@ function renderLegend() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'climate-legend';
-    el.className = 'absolute bottom-28 left-[310px] z-30 w-60 bg-[#0f172a]/85 backdrop-blur-md border border-slate-800/90 rounded-xl shadow-2xl p-2.5 text-slate-200';
+    el.className = 'absolute top-20 right-[310px] z-30 w-56 bg-[#0f172a]/85 backdrop-blur-md border border-slate-800/90 rounded-xl shadow-2xl p-2.5 text-slate-200';
     document.body.appendChild(el);
   }
   const s = state.scale;
@@ -936,17 +972,17 @@ function renderLegend() {
         <div class="text-[10px] font-bold text-white leading-tight truncate" title="${escapeHtml(meta.name)}">${escapeHtml(meta.name)}${unit}</div>
         <div class="text-[9px] text-slate-400">${escapeHtml(displayLabel())} · ${escapeHtml(scenarioNote)}</div>
       </div>
-      <span class="text-[8px] px-1.5 py-0.5 rounded border ${meta.type === 'Acute' ? 'border-rose-500/40 text-rose-300' : 'border-amber-500/40 text-amber-300'}">${meta.type || ''}</span>
+      <span class="text-[8px] px-1.5 py-0.5 rounded border ${meta.type === 'Acute' ? 'border-rose-500/40 text-rose-300' : 'border-amber-500/40 text-amber-300'}">${t(meta.type || '')}</span>
     </div>
     <div class="h-2.5 rounded-sm border border-slate-700" style="background:${gradient}"></div>
     <div class="flex justify-between text-[8px] font-mono text-slate-300 mt-1">
       ${ticks.map((t, i) => `<span>${i === 0 ? '≤' : i === 4 ? '≥' : ''}${fmtNum(t)}</span>`).join('')}
     </div>
     <div class="flex justify-between text-[8px] text-slate-500 mt-1">
-      <span>${meta.worse === 'high' ? 'lower risk' : 'higher risk'}</span>
-      <span>${meta.worse === 'high' ? 'higher risk' : 'lower risk'}</span>
+      <span>${t(meta.worse === 'high' ? 'lower risk' : 'higher risk')}</span>
+      <span>${t(meta.worse === 'high' ? 'higher risk' : 'lower risk')}</span>
     </div>
-    <div class="text-[8px] text-slate-500 mt-1 border-t border-slate-800 pt-1">Source: ${escapeHtml(getSource().label)} · ${state.grids[state.display]?.points.length || 0} cells</div>`;
+    <div class="text-[8px] text-slate-500 mt-1 border-t border-slate-800 pt-1">${t('Source')}: ${escapeHtml(t(getSource().label))} · ${t('{n} cells', { n: state.grids[state.display]?.points.length || 0 })}</div>`;
 }
 
 // --- Chip flotante con el valor de la celda bajo el cursor ---
@@ -991,7 +1027,7 @@ function cellPopupHTML(lat, lon) {
         <p class="m-0"><b>${sc.A.label}:</b> ${fmtVal(a?.value, meta)}</p>
         <p class="m-0"><b>${sc.B.label}:</b> ${fmtVal(b?.value, meta)}</p>
         <p class="m-0"><b>Δ:</b> <span style="color:${d != null && isWorse(d, meta) ? '#dc2626' : '#059669'}">${fmtVal(d, meta, true)}</span></p>
-        <p class="m-0 text-[10px] text-slate-400">Cell center: ${ref.lat.toFixed(2)}, ${ref.lon.toFixed(2)}</p>
+        <p class="m-0 text-[10px] text-slate-400">${t('Cell center')}: ${ref.lat.toFixed(2)}, ${ref.lon.toFixed(2)}</p>
       </div>
     </div>`;
 }
@@ -1008,7 +1044,7 @@ function mostrarPopupCelda2D(lat, lon) {
 function initClimateControls() {
   const srcSel = document.getElementById('climate-source');
   if (srcSel) {
-    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${s.label}</option>`).join('');
+    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${t(s.label)}</option>`).join('');
     srcSel.value = state.source;
     srcSel.addEventListener('change', () => {
       state.source = srcSel.value;
@@ -1057,7 +1093,7 @@ function poblarSelectorVariables() {
   const groups = { Acute: [], Chronic: [] };
   vars.forEach(v => (groups[getVarMeta(v).type] || groups.Chronic).push(v));
   sel.innerHTML = Object.entries(groups).filter(([, list]) => list.length).map(([g, list]) =>
-    `<optgroup label="${g} hazards">${list.map(v => `<option value="${v}">${getVarMeta(v).name}</option>`).join('')}</optgroup>`).join('');
+    `<optgroup label="${t(g + ' hazards')}">${list.map(v => `<option value="${v}">${getVarMeta(v).name}</option>`).join('')}</optgroup>`).join('');
   sel.value = state.variable;
   actualizarDescripcionVariable();
 }
@@ -1065,7 +1101,7 @@ function poblarSelectorVariables() {
 function actualizarDescripcionVariable() {
   const el = document.getElementById('climate-var-desc');
   const meta = getVarMeta();
-  if (el) el.textContent = `${meta.desc}${meta.unit ? ` Units: ${meta.unit}.` : ''}`;
+  if (el) el.textContent = `${meta.desc}${meta.unit ? ` ${t('Units')}: ${meta.unit}.` : ''}`;
 }
 
 function actualizarOpcionesFuente() {
@@ -1081,7 +1117,7 @@ function renderScenarioButtons() {
   const opts = [
     { key: 'A', label: sc.A.short, title: `${sc.A.label} (${sc.A.note})` },
     { key: 'B', label: sc.B.short, title: `${sc.B.label} (${sc.B.note})` },
-    { key: 'DIFF', label: 'Δ Change', title: `${sc.B.label} − ${sc.A.label}` }
+    { key: 'DIFF', label: t('Δ Change'), title: `${sc.B.label} − ${sc.A.label}` }
   ];
   box.innerHTML = opts.map(o => `
     <button type="button" title="${escapeHtml(o.title)}" onclick="seleccionarEscenario('${o.key}')"
@@ -1096,9 +1132,12 @@ function seleccionarEscenario(key) {
   if (cesiumPopupAssetId == null && cesiumPopupPosition) cerrarCesiumPopup();
 }
 
+let lastClimateStatus = null;
 function setClimateStatus(html, kind = 'info') {
   const el = document.getElementById('climate-status');
   if (!el) return;
+  lastClimateStatus = [html, kind];
+  if (typeof html === 'function') html = html();
   const color = { info: 'text-blue-300', ok: 'text-emerald-400', error: 'text-rose-400' }[kind];
   el.className = `text-[9px] leading-relaxed px-0.5 ${color}`;
   el.innerHTML = html;
@@ -1240,11 +1279,11 @@ function assetPopupHTML(asset) {
   const meta = getVarMeta();
   const sc = getScenarios();
   const m = asset.matchB || asset.matchA;
-  let matchTxt = 'No climate data loaded';
+  let matchTxt = t('No climate data loaded');
   if (m) {
     matchTxt = m.outside
-      ? `<span class="text-rose-500">Outside data coverage (${m.distKm.toFixed(0)} km to nearest cell)</span>`
-      : `${m.exact ? 'Grid cell' : 'Nearest cell'} ${m.cellLat.toFixed(2)}, ${m.cellLon.toFixed(2)} · ${m.distKm.toFixed(1)} km`;
+      ? `<span class="text-rose-500">${t('Outside data coverage ({km} km to nearest cell)', { km: m.distKm.toFixed(0) })}</span>`
+      : `${t(m.exact ? 'Grid cell' : 'Nearest cell')} ${m.cellLat.toFixed(2)}, ${m.cellLon.toFixed(2)} · ${m.distKm.toFixed(1)} km`;
   }
   const tierColor = TIER_COLORS[asset.tier || 'NA'];
   return `
@@ -1254,16 +1293,16 @@ function assetPopupHTML(asset) {
           <i class="fa-solid fa-industry text-blue-600 text-xs"></i>
           <h4 class="font-bold text-xs text-slate-800 m-0">${escapeHtml(asset.name)}</h4>
         </div>
-        ${asset.tier && asset.tier !== 'NA' ? `<span class="text-[9px] font-bold px-1.5 rounded" style="color:${tierColor};border:1px solid ${tierColor}">${asset.tier}</span>` : ''}
+        ${asset.tier && asset.tier !== 'NA' ? `<span class="text-[9px] font-bold px-1.5 rounded" style="color:${tierColor};border:1px solid ${tierColor}">${t(asset.tier)}</span>` : ''}
       </div>
       <div class="text-[10px] text-slate-500 mb-1">${escapeHtml(meta.name)}</div>
       <div class="text-[11px] text-slate-600 space-y-0.5 border-t border-slate-200 pt-1">
         <p class="m-0"><b>${sc.A.label}:</b> ${fmtVal(asset.vA, meta)}</p>
         <p class="m-0"><b>${sc.B.label}:</b> ${fmtVal(asset.vB, meta)}</p>
-        <p class="m-0"><b>Change:</b> <span style="color:${asset.diff != null && isWorse(asset.diff, meta) ? '#dc2626' : '#059669'}">${fmtVal(asset.diff, meta, true)}</span></p>
+        <p class="m-0"><b>${t('Change')}:</b> <span style="color:${asset.diff != null && isWorse(asset.diff, meta) ? '#dc2626' : '#059669'}">${fmtVal(asset.diff, meta, true)}</span></p>
         <p class="m-0 text-[10px] text-slate-500">${matchTxt}</p>
         <p class="m-0 text-[10px] text-slate-400">Lat/Lon: ${asset.lat.toFixed(5)}, ${asset.lng.toFixed(5)}</p>
-        <p class="m-0 text-[10px] text-slate-400"><b>Origin:</b> ${escapeHtml(asset.source)}</p>
+        <p class="m-0 text-[10px] text-slate-400"><b>${t('Origin')}:</b> ${escapeHtml(t(asset.source))}</p>
       </div>
     </div>`;
 }
@@ -1295,13 +1334,13 @@ function addManualLocation() {
     lat = parseFloat(val('manual-lat'));
     lng = parseFloat(val('manual-lng'));
   } else {
-    if (!val('lat-deg') || !val('lng-deg')) { alert('Ingresa al menos los grados de latitud y longitud.'); return; }
+    if (!val('lat-deg') || !val('lng-deg')) { alert(t('Enter at least the latitude and longitude degrees.')); return; }
     lat = dmsToDecimal(val('lat-deg'), val('lat-min'), val('lat-sec'), val('lat-dir'));
     lng = dmsToDecimal(val('lng-deg'), val('lng-min'), val('lng-sec'), val('lng-dir'));
   }
 
-  if (!isFinite(lat) || !isFinite(lng)) { alert('Por favor ingresa coordenadas válidas.'); return; }
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { alert('Las coordenadas están fuera del rango válido.'); return; }
+  if (!isFinite(lat) || !isFinite(lng)) { alert(t('Please enter valid coordinates.')); return; }
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) { alert(t('Coordinates are out of the valid range.')); return; }
 
   agregarPuntoAlSistema(name, lat, lng, 'Manual');
 
@@ -1314,7 +1353,7 @@ function renderActiveLayers() {
   const container = document.getElementById('contenedor-capas');
   if (!container) return;
   if (!state.assets.length) {
-    container.innerHTML = `<p id="empty-layers-msg" class="text-[10px] text-slate-500 text-center py-2">No active assets loaded.</p>`;
+    container.innerHTML = `<p id="empty-layers-msg" class="text-[10px] text-slate-500 text-center py-2">${t('No active assets loaded.')}</p>`;
     return;
   }
   container.innerHTML = state.assets.map(loc => `
@@ -1322,11 +1361,11 @@ function renderActiveLayers() {
       <div class="flex items-center gap-2 truncate pr-2">
         <input type="checkbox" ${loc.enabled ? 'checked' : ''} onchange="toggleLocationVisibility('${loc.id}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer">
         <span class="w-2 h-2 rounded-full shrink-0" style="background:${TIER_COLORS[loc.tier || 'NA']}"></span>
-        <span class="text-[11px] font-medium text-slate-300 truncate cursor-pointer hover:text-white" onclick="zoomToLocation('${loc.id}')" title="${escapeHtml(loc.source)}">${escapeHtml(loc.name)}</span>
+        <span class="text-[11px] font-medium text-slate-300 truncate cursor-pointer hover:text-white" onclick="zoomToLocation('${loc.id}')" title="${escapeHtml(t(loc.source))}">${escapeHtml(loc.name)}</span>
       </div>
       <div class="flex items-center gap-1.5">
         <span class="text-[9px] text-slate-500 font-mono">(${loc.lat.toFixed(2)}, ${loc.lng.toFixed(2)})</span>
-        <button onclick="deleteLocation(event, '${loc.id}')" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors opacity-80 group-hover:opacity-100 cursor-pointer" title="Delete">
+        <button onclick="deleteLocation(event, '${loc.id}')" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors opacity-80 group-hover:opacity-100 cursor-pointer" title="${t('Delete')}">
           <i class="fa-solid fa-trash-can text-[10px] pointer-events-none"></i>
         </button>
       </div>
@@ -1461,16 +1500,16 @@ function renderPortfolio() {
   const data = activosActivos().filter(a => a.vA != null || a.vB != null);
 
   // Etiquetas dinámicas
-  setText('metric-label-a', `Avg. · ${sc.A.label}`);
-  setText('metric-label-b', `Avg. · ${sc.B.label}`);
-  setText('metric-label-change', `Avg. change (${sc.A.short} → ${sc.B.short})`);
+  setText('metric-label-a', `${t('Avg.')} · ${sc.A.label}`);
+  setText('metric-label-b', `${t('Avg.')} · ${sc.B.label}`);
+  setText('metric-label-change', t('Avg. change ({a} → {b})', { a: sc.A.short, b: sc.B.short }));
   setText('th-col-a', sc.A.short);
   setText('th-col-b', sc.B.short);
   setText('th-col-diff', 'Δ');
-  setText('risk-label-max', `Highest exposure (${sc.B.short})`);
-  setText('risk-label-min', `Most resilient (${sc.B.short})`);
+  setText('risk-label-max', t('Highest exposure ({s})', { s: sc.B.short }));
+  setText('risk-label-min', t('Most resilient ({s})', { s: sc.B.short }));
   const varLabel = document.getElementById('portfolio-variable-label');
-  if (varLabel) varLabel.textContent = `${meta.name}${meta.unit ? ` (${meta.unit})` : ''} · ${data.length} asset(s)`;
+  if (varLabel) varLabel.textContent = `${meta.name}${meta.unit ? ` (${meta.unit})` : ''} · ${t('{n} asset(s)', { n: data.length })}`;
 
   const metricA = document.getElementById('metric-p2030');
   const metricB = document.getElementById('metric-p2050');
@@ -1478,14 +1517,14 @@ function renderPortfolio() {
   const tbody = document.getElementById('asset-productivity-list');
 
   if (!data.length) {
-    if (metricA) { metricA.textContent = '—'; if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = 'No data'; }
-    if (metricB) { metricB.textContent = '—'; if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = 'No data'; }
+    if (metricA) { metricA.textContent = '—'; if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = t('No data'); }
+    if (metricB) { metricB.textContent = '—'; if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = t('No data'); }
     if (changeEl) changeEl.textContent = '—';
     setText('plant-max-exposure', '—'); setText('plant-resilient', '—');
     setText('risk-max-value', ''); setText('risk-min-value', '');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-2 text-center text-slate-500">${state.loading ? 'Loading…' : 'No assets with data for this layer.'}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-2 text-center text-slate-500">${state.loading ? t('Loading…') : t('No assets with data for this layer.')}</td></tr>`;
     const chart = document.getElementById('chart-asset-productivity');
-    if (chart) chart.innerHTML = `<span class="text-[9px] text-slate-500 italic">No data</span>`;
+    if (chart) chart.innerHTML = `<span class="text-[9px] text-slate-500 italic">${t('No data')}</span>`;
     setText('risk-description', meta.desc);
     return;
   }
@@ -1498,11 +1537,11 @@ function renderPortfolio() {
   const sA = stats(data.map(a => a.vA)), sB = stats(data.map(a => a.vB));
   if (metricA) {
     metricA.textContent = fmtVal(sA?.avg, meta);
-    if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = sA ? `Range: ${fmtNum(sA.min)} – ${fmtNum(sA.max)}` : '—';
+    if (metricA.nextElementSibling) metricA.nextElementSibling.textContent = sA ? `${t('Range')}: ${fmtNum(sA.min)} – ${fmtNum(sA.max)}` : '—';
   }
   if (metricB) {
     metricB.textContent = fmtVal(sB?.avg, meta);
-    if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = sB ? `Range: ${fmtNum(sB.min)} – ${fmtNum(sB.max)}` : '—';
+    if (metricB.nextElementSibling) metricB.nextElementSibling.textContent = sB ? `${t('Range')}: ${fmtNum(sB.min)} – ${fmtNum(sB.max)}` : '—';
   }
   if (changeEl && sA && sB) {
     const d = sB.avg - sA.avg;
@@ -1523,7 +1562,7 @@ function renderPortfolio() {
   const highCount = data.filter(a => a.tier === 'HIGH').length;
   const worsening = data.filter(a => a.diff != null && isWorse(a.diff, meta)).length;
   setText('risk-description',
-    `${meta.desc} ${worsening} of ${data.length} assets worsen from ${sc.A.short} to ${sc.B.short}; ${highCount} in the high-exposure tier.`);
+    `${meta.desc} ${t('{w} of {n} assets worsen from {a} to {b}; {h} in the high-exposure tier.', { w: worsening, n: data.length, a: sc.A.short, b: sc.B.short, h: highCount })}`);
 
   // 3. Comparación
   const sortOption = document.getElementById('select-sort-assets')?.value || 'risk-desc';
@@ -1536,7 +1575,7 @@ function renderPortfolio() {
   if (tbody) {
     tbody.innerHTML = sorted.map(a => {
       const dCls = a.diff == null ? 'text-slate-500' : isWorse(a.diff, meta) ? 'text-rose-400' : 'text-emerald-400';
-      const approx = a.matchB && !a.matchB.exact ? '<span class="text-slate-500" title="Nearest grid cell">≈</span>' : '';
+      const approx = a.matchB && !a.matchB.exact ? `<span class="text-slate-500" title="${t('Nearest grid cell')}">≈</span>` : '';
       return `
         <tr class="hover:bg-slate-800/40 transition-colors cursor-pointer" onclick="zoomToLocation('${a.id}')">
           <td class="py-1 px-1.5 font-medium text-slate-200 truncate max-w-[80px]" title="${escapeHtml(a.name)}">
@@ -1569,14 +1608,14 @@ function renderMiniChart(data, sc) {
     const bar = (v, x, color, label) => v == null ? '' :
       `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${bw}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" fill="${color}" rx="1"><title>${escapeHtml(a.name)} · ${label}: ${fmtNum(v)}</title></rect>`;
     return `${bar(a.vA, cx - bw - 0.5, '#F4A261', sc.A.short)}${bar(a.vB, cx + 0.5, '#E63946', sc.B.short)}
-      <text x="${cx}" y="${H - 3}" font-size="7" fill="#94a3b8" text-anchor="middle">${escapeHtml(a.name.substring(0, 4))}</text>`;
+      <text x="${cx}" y="${H - 3}" font-size="7" fill="${isLightTheme() ? '#475569' : '#94a3b8'}" text-anchor="middle">${escapeHtml(a.name.substring(0, 4))}</text>`;
   }).join('');
 
   el.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="w-full h-full" preserveAspectRatio="none">
-      <line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="#334155" stroke-width="0.6"/>
+      <line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="${isLightTheme() ? '#cbd5e1' : '#334155'}" stroke-width="0.6"/>
       ${bars}
-      <g font-size="7" fill="#cbd5e1">
+      <g font-size="7" fill="${isLightTheme() ? '#334155' : '#cbd5e1'}">
         <rect x="4" y="2" width="6" height="6" fill="#F4A261"/><text x="12" y="7.5">${escapeHtml(sc.A.short)}</text>
         <rect x="44" y="2" width="6" height="6" fill="#E63946"/><text x="52" y="7.5">${escapeHtml(sc.B.short)}</text>
       </g>
@@ -1595,9 +1634,9 @@ function handleFileUpload(event) {
     try {
       if (ext === 'csv' || ext === 'txt') parseCSVData(e.target.result, file.name);
       else if (ext === 'geojson' || ext === 'json') parseGeoJSONData(JSON.parse(e.target.result), file.name);
-      else alert(`Archivo "${file.name}" no soportado. Sube un CSV, TXT o GeoJSON.`);
+      else alert(t('File "{f}" is not supported. Upload a CSV, TXT or GeoJSON.', { f: file.name }));
     } catch (err) {
-      alert(`No se pudo leer ${file.name}: ${err.message}`);
+      alert(t('Could not read {f}: {e}', { f: file.name, e: err.message }));
     }
     event.target.value = '';
   };
@@ -1612,7 +1651,7 @@ function parseCSVData(csvText, fileName) {
   const latIdx = headers.findIndex(h => h.startsWith('lat'));
   const lngIdx = headers.findIndex(h => h.startsWith('lon') || h.startsWith('lng') || h === 'long');
   const nameIdx = headers.findIndex(h => /name|nombre|asset|activo|planta|punto/.test(h));
-  if (latIdx < 0 || lngIdx < 0) { alert("No se identificaron columnas de latitud ('lat') y longitud ('lon'/'lng')."); return; }
+  if (latIdx < 0 || lngIdx < 0) { alert(t("No latitude ('lat') and longitude ('lon'/'lng') columns were found.")); return; }
 
   let added = 0;
   lines.slice(1).forEach((line, i) => {
@@ -1623,7 +1662,7 @@ function parseCSVData(csvText, fileName) {
   finalizarCargaMasiva();
   zoomToAllAssets();
   abrirPanelConsultas();
-  alert(`Se importaron ${added} ubicaciones desde ${fileName}.`);
+  alert(t('{n} locations imported from {f}.', { n: added, f: fileName }));
 }
 
 function parseGeoJSONData(geoJson, fileName) {
@@ -1643,7 +1682,7 @@ function parseGeoJSONData(geoJson, fileName) {
   finalizarCargaMasiva();
   zoomToAllAssets();
   abrirPanelConsultas();
-  alert(`Se importaron ${added} puntos desde ${fileName}.`);
+  alert(t('{n} locations imported from {f}.', { n: added, f: fileName }));
 }
 
 function zoomToAllAssets() {
@@ -1726,10 +1765,10 @@ function estadisticaZonal(poly) {
 function zonalHTML(z) {
   if (!z) return '';
   const meta = getVarMeta();
-  if (!z.n) return `<br><span style="color:#64748b">No grid cells inside the area</span>`;
+  if (!z.n) return `<br><span style="color:#64748b">${t('No grid cells inside the area')}</span>`;
   const signed = state.display === 'DIFF';
   return `<hr style="margin:4px 0"><b>${escapeHtml(meta.name)}</b> · ${escapeHtml(displayLabel())}<br>
-    Cells: <b>${z.n}</b> · Mean: <b>${fmtVal(z.mean, meta, signed)}</b><br>Min/Max: ${fmtNum(z.min)} / ${fmtNum(z.max)}`;
+    ${t('Cells')}: <b>${z.n}</b> · ${t('Mean')}: <b>${fmtVal(z.mean, meta, signed)}</b><br>Min/Max: ${fmtNum(z.min)} / ${fmtNum(z.max)}`;
 }
 
 function setStatusDibujo(text, cls) {
@@ -1750,7 +1789,7 @@ function activarHerramientaDibujo(modo) {
     lasso: 'Lasso mode: successive clicks (double click to finish)',
     measure: 'Measure mode: click route points (double click to finish)'
   };
-  setStatusDibujo(msgs[modo], 'text-[9px] text-blue-400 font-bold px-1 animate-pulse');
+  setStatusDibujo(t(msgs[modo]), 'text-[9px] text-blue-400 font-bold px-1 animate-pulse');
 
   if (leafletMap) {
     leafletMap.getContainer().style.cursor = 'crosshair';
@@ -1816,16 +1855,16 @@ function procesarClicPunto(coord) {
   if (!activeDrawTool) return;
 
   if (activeDrawTool === 'point') {
-    const nombre = prompt('Analysis point name:', `Analysis-${state.assets.length + 1}`);
+    const nombre = prompt(t('Analysis point name:'), `${t('Analysis')}-${state.assets.length + 1}`);
     desactivarHerramientasActuales();
     if (!nombre) return;
     agregarPuntoAlSistema(nombre, coord.lat, coord.lng, 'Spatial analysis');
-    setStatusDibujo('Point added and evaluated', 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Point added and evaluated'), 'text-[9px] text-green-400 font-semibold px-1');
 
   } else if (activeDrawTool === 'rectangle') {
     if (!tempPoints.length) {
       tempPoints.push(coord);
-      setStatusDibujo('Corner 1 set. Click the opposite corner.');
+      setStatusDibujo(t('Corner 1 set. Click the opposite corner.'));
       return;
     }
     const p1 = tempPoints[0], p2 = coord;
@@ -1833,7 +1872,7 @@ function procesarClicPunto(coord) {
     const minLng = Math.min(p1.lng, p2.lng), maxLng = Math.max(p1.lng, p2.lng);
     const poly = [{ lat: minLat, lng: minLng }, { lat: maxLat, lng: minLng }, { lat: maxLat, lng: maxLng }, { lat: minLat, lng: maxLng }];
     const areaText = formatearArea(calcularAreaPoligono(poly));
-    const html = `<b>Analysis rectangle</b><br>Area: <b>${areaText}</b>${zonalHTML(estadisticaZonal(poly))}`;
+    const html = `<b>${t('Analysis rectangle')}</b><br>${t('Area')}: <b>${areaText}</b>${zonalHTML(estadisticaZonal(poly))}`;
 
     if (leafletMap) {
       const r = L.rectangle([[minLat, minLng], [maxLat, maxLng]], { color: '#3b82f6', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 }).addTo(leafletMap);
@@ -1850,12 +1889,12 @@ function procesarClicPunto(coord) {
       }));
       if (currentMode === '3d') mostrarCesiumPopupEn(Cesium.Cartesian3.fromDegrees((minLng + maxLng) / 2, (minLat + maxLat) / 2), `<div class="text-[11px] pr-4">${html}</div>`, null);
     }
-    setStatusDibujo(`Rectangle drawn (${areaText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Rectangle drawn ({a})', { a: areaText }), 'text-[9px] text-green-400 font-semibold px-1');
     desactivarHerramientasActuales();
 
   } else if (activeDrawTool === 'lasso' || activeDrawTool === 'measure') {
     tempPoints.push(coord);
-    setStatusDibujo(`${activeDrawTool === 'lasso' ? 'Lasso' : 'Measure'}: ${tempPoints.length} point(s). Double click to finish.`);
+    setStatusDibujo(t('{tool}: {n} point(s). Double click to finish.', { tool: t(activeDrawTool === 'lasso' ? 'Lasso' : 'Measure'), n: tempPoints.length }));
   }
 }
 
@@ -1891,7 +1930,7 @@ function procesarMoverPunto(coord) {
   if (activeDrawTool === 'measure') {
     let d = 0;
     for (let i = 0; i < preview.length - 1; i++) d += calcularDistanciaPuntos(preview[i], preview[i + 1]);
-    setStatusDibujo(`Current distance: ${formatearDistancia(d)}`);
+    setStatusDibujo(t('Current distance: {d}', { d: formatearDistancia(d) }));
   }
 }
 
@@ -1906,7 +1945,7 @@ function finalizarDibujoHerramienta() {
   if (activeDrawTool === 'lasso' && tempPoints.length >= 3) {
     const pts = [...tempPoints];
     const areaText = formatearArea(calcularAreaPoligono(pts));
-    const html = `<b>Lasso polygon</b><br>Area: <b>${areaText}</b>${zonalHTML(estadisticaZonal(pts))}`;
+    const html = `<b>${t('Lasso polygon')}</b><br>${t('Area')}: <b>${areaText}</b>${zonalHTML(estadisticaZonal(pts))}`;
     if (leafletMap) {
       const p = L.polygon(pts.map(q => [q.lat, q.lng]), { color: '#8b5cf6', weight: 2, fillColor: '#8b5cf6', fillOpacity: 0.2 }).addTo(leafletMap);
       p.bindPopup(html);
@@ -1920,7 +1959,7 @@ function finalizarDibujoHerramienta() {
       const c = pts.reduce((s, q) => ({ lat: s.lat + q.lat / pts.length, lng: s.lng + q.lng / pts.length }), { lat: 0, lng: 0 });
       if (currentMode === '3d') mostrarCesiumPopupEn(Cesium.Cartesian3.fromDegrees(c.lng, c.lat), `<div class="text-[11px] pr-4">${html}</div>`, null);
     }
-    setStatusDibujo(`Lasso completed (${areaText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Lasso completed ({a})', { a: areaText }), 'text-[9px] text-green-400 font-semibold px-1');
 
   } else if (activeDrawTool === 'measure') {
     const pts = [...tempPoints];
@@ -1929,7 +1968,7 @@ function finalizarDibujoHerramienta() {
     const distText = formatearDistancia(d);
     if (leafletMap) {
       const l = L.polyline(pts.map(q => [q.lat, q.lng]), { color: '#f59e0b', weight: 3 }).addTo(leafletMap);
-      l.bindPopup(`<b>Distance</b><br>Total length: <b>${distText}</b>`);
+      l.bindPopup(`<b>${t('Distance')}</b><br>${t('Total length')}: <b>${distText}</b>`);
       if (currentMode === '2d') l.openPopup();
       drawnLayers2D.push(l);
     }
@@ -1938,7 +1977,7 @@ function finalizarDibujoHerramienta() {
         polyline: { positions: Cesium.Cartesian3.fromDegreesArray(pts.flatMap(q => [q.lng, q.lat])), width: 3, material: Cesium.Color.ORANGE, clampToGround: true }
       }));
     }
-    setStatusDibujo(`Measurement finished (${distText})`, 'text-[9px] text-green-400 font-semibold px-1');
+    setStatusDibujo(t('Measurement finished ({d})', { d: distText }), 'text-[9px] text-green-400 font-semibold px-1');
   }
   desactivarHerramientasActuales();
 }
@@ -1955,138 +1994,649 @@ function limpiarDibujos() {
   drawnEntities3D.forEach(e => cesiumViewer?.entities.remove(e));
   drawnEntities3D = [];
   if (!cesiumPopupAssetId) cerrarCesiumPopup();
-  setStatusDibujo('Ninguna herramienta activa', 'text-[9px] text-slate-400 italic px-1');
+  setStatusDibujo(t('No active tool'), 'text-[9px] text-slate-400 italic px-1');
 }
 
-// =========================================================================
-// 17. AGENTES IA (pipeline simulado, alimentado con datos reales del portafolio)
-// =========================================================================
-const langGraphState = { currentStep: 1, userQueryHistory: [], isProcessing: false };
 
-const pipelineConfig = {
-  1: { title: 'Step 1: Climate Data Agent', placeholder: 'Request climate data grid extraction...', nextStep: 2 },
-  2: { title: 'Step 2: Risk Analysis Agent', placeholder: 'Request vulnerability and loss evaluation...', nextStep: 3 },
-  3: { title: 'Step 3: Report Generator Agent', placeholder: 'Request PDF report consolidation...', nextStep: 4 },
-  4: { title: 'Step 4: Climate Finance Agent', placeholder: 'Finish analysis...', nextStep: null }
+// =========================================================================
+// 17. AGENTES IA — DEMOSTRACIÓN DEL FLUJO DE 4 AGENTES
+//     1) Climate Selection and Analysis  2) Risk Assessment
+//     3) Response and Reporting          4) Delivery and Feedback
+//     Las respuestas son simuladas (no hay LLM conectado), pero usan los datos
+//     reales del mapa y del panel de consulta.
+// =========================================================================
+const agentState = { step: 0, busy: false, run: null, msgSeq: 0 };
+
+const AGENTS = {
+  1: { name: 'Climate Selection and Analysis Agent', icon: 'fa-magnifying-glass-chart', color: 'text-sky-400', ring: 'border-sky-500/40 bg-sky-950/60' },
+  2: { name: 'Risk Assessment Agent', icon: 'fa-shield-halved', color: 'text-amber-400', ring: 'border-amber-500/40 bg-amber-950/60' },
+  3: { name: 'Response and Reporting Agent', icon: 'fa-file-lines', color: 'text-emerald-400', ring: 'border-emerald-500/40 bg-emerald-950/60' },
+  4: { name: 'Delivery and Feedback Agent', icon: 'fa-paper-plane', color: 'text-violet-400', ring: 'border-violet-500/40 bg-violet-950/60' }
 };
 
-function buildAgentResponse(step) {
-  const meta = getVarMeta();
-  const sc = getScenarios();
-  const data = activosActivos().filter(a => a.vB != null);
-  const sorted = [...data].sort((a, b) => meta.worse === 'high' ? b.vB - a.vB : a.vB - b.vB);
-  const worst = sorted[0];
-  const row = (k, v, cls = 'text-slate-200') => `<div class="flex justify-between border-b border-slate-800/80 pb-1"><span class="text-slate-400">${k}</span><span class="${cls} font-bold">${v}</span></div>`;
-  const card = inner => `<div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-[10px] font-mono">${inner}</div>`;
+const EXAMPLE_QUERIES = [
+  'Which location will have the highest risk of consecutive dry days in 2030 and 2050?',
+  'Which plant faces the largest increase in dangerous heat days by 2050?',
+  'Compare labour productivity loss in Nare and Yumbo.'
+];
 
-  if (step === 1) return {
-    agentName: 'Agent 1: Climate Ingestion & Filtering',
-    toolExecuted: `fetch_grid(source='${state.source}', var='${state.variable}', scenarios=['${sc.A.code}','${sc.B.code}'])`,
-    llmReasoning: `Loaded ${state.grids.A?.points.length || 0} grid cells per scenario for ${meta.name} and extracted values for ${data.length} assets by grid cell / nearest neighbour.`,
-    cardHTML: card(row('Variable:', escapeHtml(state.variable), 'text-green-400') + row('Scenarios:', `${sc.A.label} / ${sc.B.label}`) +
-      row('Grid resolution:', `${state.grids.A?.resLat ?? '—'}°`, 'text-blue-400')),
-    suggestion: 'Data validated. Transfer context to <b>Agent 2 (Risk Analysis)</b>.'
-  };
-  if (step === 2) return {
-    agentName: 'Agent 2: Physical Vulnerability & Exposure',
-    toolExecuted: `rank_assets(var='${state.variable}', scenario='${sc.B.code}', direction='${meta.worse}')`,
-    llmReasoning: worst ? `Highest exposure under ${sc.B.label}: ${escapeHtml(worst.name)}. ${data.filter(a => a.tier === 'HIGH').length} asset(s) in the high tier.` : 'No assets with data.',
-    cardHTML: card(sorted.slice(0, 4).map(a => row(`${escapeHtml(a.name)}:`, `${fmtVal(a.vA, meta)} → ${fmtVal(a.vB, meta)}`, isWorse(a.diff ?? 0, meta) ? 'text-red-400' : 'text-emerald-400')).join('')),
-    suggestion: 'Assessment stored in state. Proceed to the <b>Agent 3</b> report.'
-  };
-  if (step === 3) return {
-    agentName: 'Agent 3: Report Generator (PDF)',
-    toolExecuted: `build_pdf_report(template='SEI_Executive_V1', var='${state.variable}')`,
-    llmReasoning: 'Consolidated portfolio metrics, rankings and maps into a structured report (demo).',
-    cardHTML: `<div class="p-2.5 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2 overflow-hidden"><i class="fa-solid fa-file-pdf text-red-400 text-xl shrink-0"></i>
-        <div class="truncate"><p class="text-[10px] font-bold text-white truncate">Climate_Risk_${escapeHtml(state.variable)}.pdf</p><p class="text-[9px] text-slate-400">Demo output</p></div></div>
-        <button onclick="downloadReportSimulated()" class="px-2.5 py-1 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold shrink-0"><i class="fa-solid fa-download"></i> PDF</button></div>`,
-    suggestion: 'Report issued. Transfer to <b>Agent 4</b> to search funding lines.'
-  };
-  return {
-    agentName: 'Agent 4: Climate Finance Matching',
-    toolExecuted: `match_funds(hazard_type='${meta.type}', country='COL')`,
-    llmReasoning: 'Candidate adaptation finance windows for the identified hazards (demo, not verified).',
-    cardHTML: card(row('Adaptation-focused funds', 'to review', 'text-amber-400') + row('Development bank lines', 'to review', 'text-amber-400')),
-    suggestion: 'Pipeline completed.'
-  };
+/** Palabras clave → variable (orden: de lo más específico a lo más general) */
+const VARIABLE_KEYWORDS = [
+  ['consecutive_dry_days', /dry days?|dias? secos?|cdd|estiagem|sequia consecutiva/],
+  ['labour-productivity-loss', /productiv|produtiv|labou?r|laboral|trabaj|trabalh/],
+  ['HI-danger', /heat days|dangerous heat|heat index|heatwave|heat wave|dias de calor|ola de calor|onda de calor|calor peligroso|calor perigoso/],
+  ['fwixd', /fire|incendi|queimad/],
+  ['spei_gamma_12', /drought|sequia|\bseca\b|spei/],
+  ['wsi', /water stress|estres hidrico|estresse hidrico|water scarcity|escasez de agua|escassez/],
+  ['dis', /river|discharge|caudal|vazao|streamflow|\brio\b/],
+  ['rx5day', /5[- ]?day|cinco dias|rx5/],
+  ['rx1day', /1[- ]?day|extreme rain|heavy rain|lluvia extrema|lluvias extremas|chuva extrema|rx1|flood|inundac/],
+  ['prAdjust', /precipitation|rain|lluvia|precipitac|chuva/],
+  ['TXx', /max(imum)? (daily )?temperature|temperatura maxima|txx/],
+  ['tasAdjust', /temperature|temperatura|warming|calentamiento|aquecimento/],
+  ['HI-danger', /heat|calor/]
+];
+
+const RECOMMENDATIONS = {
+  dry: 'Prioritise a site-level water-availability assessment and contingency plans for dry seasons at the most exposed sites.',
+  heat: 'Prioritise heat-stress protocols for workers (shifts, shade, hydration) and cooling needs at the most exposed sites.',
+  rain: 'Prioritise a review of drainage, flood defences and access routes at the most exposed sites.',
+  fire: 'Prioritise fire-prevention measures and vegetation management around the most exposed sites.',
+  water: 'Prioritise water-supply security and efficiency measures at the most exposed sites.'
+};
+const RECO_BY_VAR = {
+  consecutive_dry_days: 'dry', spei_gamma_12: 'dry', prAdjust: 'dry', 'HI-danger': 'heat', TXx: 'heat', tasAdjust: 'heat',
+  'labour-productivity-loss': 'heat', rx1day: 'rain', rx5day: 'rain', fwixd: 'fire', wsi: 'water', dis: 'water'
+};
+
+const normalizeText = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showToast(msg, kind = 'ok') {
+  const el = document.createElement('div');
+  const color = kind === 'error' ? 'border-rose-500/50 text-rose-200' : 'border-emerald-500/50 text-emerald-200';
+  el.className = `fixed top-24 left-1/2 -translate-x-1/2 z-[10000] bg-slate-900/95 border ${color} text-xs px-3 py-2 rounded-lg shadow-2xl max-w-md text-center`;
+  el.innerHTML = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
 }
 
-function executeCurrentStep(customInput = null) {
-  if (langGraphState.isProcessing) return;
-  const inputEl = document.getElementById('user-chat-input');
-  const chatBody = document.getElementById('chat-conversation-body');
-  const queryText = customInput || inputEl?.value.trim();
-  if (!queryText || !chatBody) return;
+// --- Elementos del chat --------------------------------------------------
+function chatBody() { return document.getElementById('chat-conversation-body'); }
+function scrollChat() { const b = chatBody(); if (b) b.scrollTop = b.scrollHeight; }
 
-  langGraphState.isProcessing = true;
-  langGraphState.userQueryHistory.push(queryText);
-  chatBody.insertAdjacentHTML('beforeend', `
-    <div class="flex justify-end"><div class="bg-green-600/20 border border-green-500/30 px-3 py-2 rounded-2xl rounded-tr-none max-w-[85%] text-slate-200 text-[11px]">${escapeHtml(queryText)}</div></div>`);
-  if (inputEl) inputEl.value = '';
-
-  const loadingId = `loading-${Date.now()}`;
-  chatBody.insertAdjacentHTML('beforeend', `
-    <div id="${loadingId}" class="flex gap-2.5">
-      <div class="w-7 h-7 rounded-lg bg-green-950/40 border border-green-500/30 flex items-center justify-center shrink-0"><i class="fa-solid fa-spinner animate-spin text-green-400 text-xs"></i></div>
-      <div class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl rounded-tl-none text-slate-400 text-[11px]">Running agent ${langGraphState.currentStep}…</div>
+function addUserBubble(text) {
+  chatBody()?.insertAdjacentHTML('beforeend', `
+    <div class="flex justify-end">
+      <div class="bg-blue-600/20 border border-blue-500/30 px-3 py-2 rounded-2xl rounded-tr-none max-w-[85%] text-slate-200 text-[11px]">${escapeHtml(text)}</div>
     </div>`);
-  chatBody.scrollTop = chatBody.scrollHeight;
+  scrollChat();
+}
 
-  setTimeout(() => {
-    document.getElementById(loadingId)?.remove();
-    const step = langGraphState.currentStep;
-    const res = buildAgentResponse(step);
-    const next = pipelineConfig[step].nextStep;
-    const btn = next ? `<div class="pt-1"><button onclick="triggerNextAgentStep(${next})" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1.5"><i class="fa-solid fa-arrow-right"></i> Run ${pipelineConfig[next].title.split(':')[1]}</button></div>` : '';
-    chatBody.insertAdjacentHTML('beforeend', `
-      <div class="flex gap-2.5">
-        <div class="w-7 h-7 rounded-lg bg-green-950/60 border border-green-500/40 flex items-center justify-center shrink-0"><i class="fa-solid fa-robot text-green-400 text-xs"></i></div>
-        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[90%] text-slate-200 text-[11px] leading-relaxed space-y-2.5 shadow-lg">
-          <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
-            <span class="text-[10px] font-bold text-green-400 flex items-center gap-1"><i class="fa-solid fa-microchip"></i> ${res.agentName}</span>
-            <span class="text-[9px] text-slate-500 font-mono">demo</span>
-          </div>
-          <div class="flex items-center gap-2 p-1.5 bg-slate-950/80 border border-slate-800 rounded-lg text-[10px] text-slate-400 font-mono overflow-x-auto">
-            <i class="fa-solid fa-terminal text-green-400 shrink-0"></i><span class="truncate">ToolExecuted: <span class="text-slate-200">${escapeHtml(res.toolExecuted)}</span></span>
-          </div>
-          <p>${res.llmReasoning}</p>${res.cardHTML}<p class="text-slate-400">${res.suggestion}</p>${btn}
+/** Burbuja de un agente; devuelve el contenedor interno para ir llenándolo */
+function addAgentBubble(n) {
+  const a = AGENTS[n];
+  const id = `agent-msg-${++agentState.msgSeq}`;
+  chatBody()?.insertAdjacentHTML('beforeend', `
+    <div class="flex gap-2.5" data-agent-step="${n}">
+      <div class="w-7 h-7 rounded-lg border ${a.ring} flex items-center justify-center shrink-0">
+        <i class="fa-solid ${a.icon} ${a.color} text-xs"></i>
+      </div>
+      <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[90%] w-full text-slate-200 text-[11px] leading-relaxed space-y-2.5 shadow-lg">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+          <span class="text-[10px] font-bold ${a.color} flex items-center gap-1"><i class="fa-solid fa-microchip"></i> ${t('Agent {n}', { n })}: ${t(a.name)}</span>
+          <span class="text-[9px] text-slate-500 font-mono">${t('simulated')}</span>
         </div>
-      </div>`);
-    unlockNextStepUI(step);
-    langGraphState.isProcessing = false;
-    chatBody.scrollTop = chatBody.scrollHeight;
-  }, 1200);
+        <div id="${id}" class="space-y-2.5"></div>
+      </div>
+    </div>`);
+  scrollChat();
+  return document.getElementById(id);
 }
 
-function triggerNextAgentStep(targetStep) {
-  selectStep(targetStep);
-  executeCurrentStep(pipelineConfig[targetStep].placeholder);
-}
-
-function unlockNextStepUI(completedStep) {
-  const icon = document.getElementById(`step-icon-${completedStep}`);
-  if (icon) icon.innerHTML = `<i class="fa-solid fa-circle-check text-green-400"></i>`;
-  const next = pipelineConfig[completedStep].nextStep;
-  if (!next) return;
-  const btn = document.getElementById(`step-btn-${next}`);
-  if (btn) {
-    btn.disabled = false;
-    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-900/50', 'border-slate-800', 'text-slate-600');
-    btn.classList.add('bg-blue-500/20', 'border-blue-500/60', 'text-blue-300', 'cursor-pointer');
-    const nIcon = document.getElementById(`step-icon-${next}`);
-    if (nIcon) nIcon.innerHTML = `<i class="fa-solid fa-brain text-[10px] animate-pulse"></i>`;
+/** Lista de tareas que se van completando ("pensando") */
+async function runThinking(container, steps, delay = 650) {
+  const box = document.createElement('div');
+  box.className = 'p-2 bg-slate-950/80 border border-slate-800 rounded-lg text-[10px] text-slate-400 font-mono space-y-1';
+  container.appendChild(box);
+  for (const st of steps) {
+    const row = document.createElement('div');
+    row.innerHTML = `<i class="fa-solid fa-spinner animate-spin text-sky-400 w-3"></i> ${escapeHtml(st)}`;
+    box.appendChild(row);
+    scrollChat();
+    await sleep(delay);
+    row.innerHTML = `<i class="fa-solid fa-check text-emerald-400 w-3"></i> ${escapeHtml(st)}`;
   }
-  selectStep(next);
+  return box;
 }
 
-function selectStep(stepNumber) {
-  langGraphState.currentStep = stepNumber;
+/** Texto que se escribe progresivamente (efecto de respuesta de un LLM) */
+async function streamText(container, html) {
+  const p = document.createElement('div');
+  p.className = 'text-[11px] leading-relaxed text-slate-200';
+  container.appendChild(p);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const plain = tmp.textContent;
+  const words = plain.split(/(\s+)/);
+  let out = '';
+  for (let i = 0; i < words.length; i++) {
+    out += words[i];
+    if (i % 3 === 0) { p.textContent = out; scrollChat(); await sleep(28); }
+  }
+  p.innerHTML = html;
+  scrollChat();
+  return p;
+}
+
+const kvCard = rows => `<div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-[10px] font-mono">${
+  rows.map(([k, v, cls], i) => `<div class="flex justify-between gap-3 ${i < rows.length - 1 ? 'border-b border-slate-800/80 pb-1' : ''}"><span class="text-slate-400 shrink-0">${k}</span><span class="${cls || 'text-slate-200'} font-bold text-right">${v}</span></div>`).join('')}</div>`;
+
+function nextButton(label, onclick) {
+  return `<div class="pt-1"><button onclick="${onclick}" class="agent-next-btn px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-md flex items-center gap-1.5"><i class="fa-solid fa-arrow-right"></i> ${label}</button></div>`;
+}
+
+function disableNextButtons() {
+  chatBody()?.querySelectorAll('.agent-next-btn').forEach(b => { b.disabled = true; b.classList.add('opacity-40', 'cursor-not-allowed'); });
+}
+
+// --- Pasos del encabezado ------------------------------------------------
+function updateStepButtons() {
+  for (let n = 1; n <= 4; n++) {
+    const btn = document.getElementById(`step-btn-${n}`);
+    const icon = document.getElementById(`step-icon-${n}`);
+    if (!btn || !icon) continue;
+    const done = agentState.step > n || agentState.done;
+    const active = agentState.step === n && !agentState.done;
+    const reachable = done || active || (n === 1);
+    btn.disabled = !reachable;
+    btn.className = `p-1.5 rounded-lg border flex items-center justify-center gap-1.5 ${
+      active ? 'bg-blue-500/20 border-blue-500/60 text-blue-300 cursor-pointer'
+      : done ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 cursor-pointer'
+      : n === 1 ? 'bg-blue-500/20 border-blue-500/60 text-blue-300 cursor-pointer'
+      : 'bg-slate-900/50 border-slate-800 text-slate-600 opacity-50 cursor-not-allowed'}`;
+    icon.innerHTML = done ? '<i class="fa-solid fa-circle-check text-[10px]"></i>'
+      : active || n === 1 ? `<i class="fa-solid ${AGENTS[n].icon} text-[10px] ${active ? 'animate-pulse' : ''}"></i>`
+      : '<i class="fa-solid fa-lock text-[10px]"></i>';
+  }
+}
+
+/** Clic en un paso: lleva al mensaje de ese agente */
+function selectStep(n) {
+  const el = chatBody()?.querySelector(`[data-agent-step="${n}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else document.getElementById('user-chat-input')?.focus();
+}
+
+// --- Intro y ejemplos ----------------------------------------------------
+function renderAgentIntro() {
+  const body = chatBody();
+  if (!body || agentState.step > 0) return;
+  body.innerHTML = `
+    <div class="flex gap-2.5">
+      <div class="w-7 h-7 rounded-lg border border-sky-500/40 bg-sky-950/60 flex items-center justify-center shrink-0"><i class="fa-solid fa-robot text-sky-400 text-xs"></i></div>
+      <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[90%] text-slate-300 text-[11px] leading-relaxed space-y-2">
+        <p class="text-slate-100 font-bold">${t('Hello! I am the AI Climate Risk assistant.')}</p>
+        <p>${t('Ask a question about the assets and climate variables on the map. Four agents will select the data, assess the risk, answer with a PDF report and handle delivery and feedback.')}</p>
+        <p class="text-slate-500 text-[10px]">${t('Demonstration: responses are simulated, but they use the real CIE v2 data shown in the platform.')}</p>
+        <div class="flex flex-col gap-1.5 pt-1">
+          ${EXAMPLE_QUERIES.map((q, i) => `<button onclick="useExampleQuery(${i})" class="text-left px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:border-blue-500/60 hover:text-white text-[10px] text-slate-300 transition-colors"><i class="fa-regular fa-lightbulb text-amber-400 mr-1"></i>${escapeHtml(t(q))}</button>`).join('')}
+        </div>
+      </div>
+    </div>`;
   const input = document.getElementById('user-chat-input');
-  if (input) input.placeholder = pipelineConfig[stepNumber].placeholder;
+  if (input) input.placeholder = t('Ask about the climate risk of your portfolio...');
+  updateStepButtons();
 }
 
-function downloadReportSimulated() {
-  alert('Descarga simulada del reporte técnico de riesgo climático (PDF).');
+function useExampleQuery(i) {
+  const input = document.getElementById('user-chat-input');
+  if (input) input.value = t(EXAMPLE_QUERIES[i]);
+  executeCurrentStep();
+}
+
+// --- Agente 1: selección y análisis climático -----------------------------
+function parseQuery(text) {
+  const q = normalizeText(text);
+  const varHit = VARIABLE_KEYWORDS.find(([, re]) => re.test(q));
+  const variable = varHit && getSource().variables.includes(varHit[0]) ? varHit[0] : state.variable;
+  let rcp = null;
+  if (/rcp ?2\.?6|ssp1/.test(q)) rcp = 'rcp26';
+  else if (/rcp ?4\.?5|ssp2/.test(q)) rcp = 'rcp45';
+  else if (/rcp ?8\.?5|ssp5/.test(q)) rcp = 'rcp85';
+  const named = state.assets.filter(a => a.enabled && q.includes(normalizeText(a.name)));
+  const years = ['2030', '2050'].filter(y => q.includes(y));
+  return { variable, rcp, assetIds: named.map(a => a.id), years, detectedVariable: !!varHit };
+}
+
+async function waitForClimateData(maxMs = 45000) {
+  const t0 = Date.now();
+  await sleep(50);
+  while ((state.loading || !state.grids.A) && Date.now() - t0 < maxMs) await sleep(150);
+  return !!state.grids.A;
+}
+
+async function executeCurrentStep(customInput = null) {
+  if (agentState.busy) return;
+  const input = document.getElementById('user-chat-input');
+  const text = (customInput || input?.value || '').trim();
+  if (!text) return;
+  if (input) input.value = '';
+
+  // Una nueva pregunta reinicia el flujo
+  if (agentState.step === 0 || agentState.done) chatBody().innerHTML = '';
+  disableNextButtons();
+  agentState.busy = true;
+  agentState.done = false;
+  agentState.step = 1;
+  agentState.run = { query: text, startedAt: new Date() };
+  updateStepButtons();
+  addUserBubble(text);
+
+  try {
+    const box = addAgentBubble(1);
+    const parsed = parseQuery(text);
+    await runThinking(box, [
+      t('Parsing the natural-language query'),
+      t('Identifying climate variable, scenario and time horizons'),
+      t('Matching locations with the assets on the map')
+    ]);
+
+    // Aplicar la selección al mapa (variable y RCP) y cargar los datos reales
+    let changed = false;
+    if (parsed.rcp && state.source === 'cie_api' && parsed.rcp !== state.cieRcp) {
+      state.cieRcp = parsed.rcp;
+      const rcpSel = document.getElementById('climate-rcp');
+      if (rcpSel) rcpSel.value = parsed.rcp;
+      renderScenarioButtons();
+      changed = true;
+    }
+    if (parsed.variable !== state.variable) {
+      state.variable = parsed.variable;
+      const sel = document.getElementById('climate-variable');
+      if (sel) sel.value = parsed.variable;
+      actualizarDescripcionVariable();
+      changed = true;
+    }
+    const loadingRow = await runThinking(box, [t('Loading CIE v2 data for the selection')], 300);
+    if (changed) loadClimateData();
+    const ok = await waitForClimateData();
+    if (!ok) throw new Error(t('Climate data could not be loaded.'));
+    loadingRow.remove();
+
+    const meta = getVarMeta();
+    const sc = getScenarios();
+    const assets = (parsed.assetIds.length ? state.assets.filter(a => parsed.assetIds.includes(a.id)) : activosActivos());
+    agentState.run = { ...agentState.run, parsed, variable: state.variable, meta, sc, source: state.source, rcp: state.cieRcp, wl: state.wl, assetIds: assets.map(a => a.id) };
+
+    const wlText = state.source === 'cie_api' && state.wl?.A != null ? ` (+${state.wl.A}°C / +${state.wl.B}°C)` : '';
+    box.insertAdjacentHTML('beforeend', `<p>${t('I selected the following data for your question:')}</p>` + kvCard([
+      [t('Variable') + ':', escapeHtml(meta.name), 'text-sky-300'],
+      [t('Scenario') + ':', escapeHtml(state.source === 'cie_api' ? `${sc.A.note}${wlText}` : t(getSource().label)), ''],
+      [t('Horizons') + ':', `${escapeHtml(sc.A.short)} · ${escapeHtml(sc.B.short)}`, ''],
+      [t('Locations') + ':', parsed.assetIds.length ? escapeHtml(assets.map(a => a.name).join(', ')) : t('All {n} assets in the portfolio', { n: assets.length }), ''],
+      [t('Source') + ':', escapeHtml(t(getSource().label)), 'text-slate-400']
+    ]) + (parsed.detectedVariable ? '' : `<p class="text-amber-300 text-[10px]">${t('No variable was named in the question, so I used the one selected on the map.')}</p>`)
+      + `<p class="text-slate-400">${t('The map and the query panel now show this selection.')}</p>`
+      + nextButton(t('Send to Risk Assessment Agent'), 'runRiskAssessmentAgent()'));
+    abrirPanelConsultas();
+    scrollChat();
+  } catch (err) {
+    chatBody()?.insertAdjacentHTML('beforeend', `<p class="text-rose-400 text-[11px]">${escapeHtml(err.message)}</p>`);
+    agentState.step = 0;
+  } finally {
+    agentState.busy = false;
+    updateStepButtons();
+  }
+}
+
+// --- Datos del análisis (los mismos del panel de consulta) -----------------
+function runAssets() {
+  const ids = agentState.run?.assetIds || [];
+  return state.assets.filter(a => ids.includes(a.id) && (a.vA != null || a.vB != null));
+}
+
+function rankAssets(list, key) {
+  const meta = agentState.run.meta;
+  const val = a => key === 'A' ? a.vA : key === 'B' ? a.vB : a.diff;
+  return [...list].filter(a => val(a) != null).sort((x, y) => meta.worse === 'high' ? val(y) - val(x) : val(x) - val(y));
+}
+
+// --- Agente 2: evaluación de riesgo --------------------------------------
+async function runRiskAssessmentAgent() {
+  if (agentState.busy || agentState.step !== 1) return;
+  agentState.busy = true;
+  disableNextButtons();
+  agentState.step = 2;
+  updateStepButtons();
+  try {
+    const box = addAgentBubble(2);
+    await runThinking(box, [
+      t('Receiving the selection from the Climate Selection and Analysis Agent'),
+      t('Validating results against the query panel'),
+      t('Checking units, grid coverage and missing values'),
+      t('Converting results to machine-readable format (JSON)'),
+      t('Retrieving context from the knowledge base (RAG)')
+    ]);
+    const r = agentState.run;
+    const list = runAssets();
+    const outside = state.assets.filter(a => r.assetIds.includes(a.id) && a.vA == null && a.vB == null).length;
+    const worsening = list.filter(a => a.diff != null && isWorse(a.diff, r.meta)).length;
+
+    const payload = {
+      query_id: `q-${r.startedAt.getTime().toString(36)}`,
+      intent: 'rank_assets_by_hazard',
+      language: currentLang,
+      variable: { code: r.variable, unit: r.meta.unit || 'index', higher_is_worse: r.meta.worse === 'high' },
+      scenario: r.source === 'cie_api' ? { rcp: r.rcp, global_warming_c: [r.wl?.A, r.wl?.B] } : { warming_levels_c: [1.5, 3.0] },
+      horizons: [r.sc.A.code, r.sc.B.code],
+      assets: list.map(a => ({ name: a.name, lat: +a.lat.toFixed(3), lon: +a.lng.toFixed(3), [r.sc.A.short]: a.vA == null ? null : +a.vA.toFixed(3), [r.sc.B.short]: a.vB == null ? null : +a.vB.toFixed(3), delta: a.diff == null ? null : +a.diff.toFixed(3) }))
+    };
+    r.payload = payload;
+    const json = JSON.stringify(payload, null, 2);
+
+    box.insertAdjacentHTML('beforeend',
+      kvCard([
+        [t('Assets validated') + ':', `${list.length}`, 'text-emerald-400'],
+        [t('Outside data coverage') + ':', `${outside}`, outside ? 'text-rose-400' : 'text-slate-200'],
+        [t('Assets with increasing risk') + ':', `${worsening} / ${list.length}`, worsening ? 'text-amber-400' : 'text-emerald-400'],
+        [t('Consistency with query panel') + ':', t('OK'), 'text-emerald-400']
+      ]) +
+      `<div><p class="text-[10px] text-slate-400 mb-1"><i class="fa-solid fa-code text-amber-400"></i> ${t('Machine-readable payload sent to the RAG and LLM:')}</p>
+        <pre class="p-2 bg-slate-950/90 border border-slate-800 rounded-lg text-[9px] leading-snug text-emerald-300 font-mono max-h-28 overflow-auto custom-scrollbar">${escapeHtml(json)}</pre></div>` +
+      `<div><p class="text-[10px] text-slate-400 mb-1"><i class="fa-solid fa-book text-amber-400"></i> ${t('Context retrieved from the knowledge base (simulated):')}</p>` +
+      kvCard([
+        [t('CIE v2 indicator documentation'), 'sim. 0.92', 'text-blue-400'],
+        [t('IPCC AR6 WGI, Chapter 11: weather and climate extremes'), 'sim. 0.87', 'text-blue-400'],
+        [t('Portfolio climate-risk screening guidelines'), 'sim. 0.81', 'text-blue-400']
+      ]) + `</div>` +
+      nextButton(t('Generate response and report'), 'runResponseAgent()'));
+    scrollChat();
+  } finally {
+    agentState.busy = false;
+    updateStepButtons();
+  }
+}
+
+// --- Agente 3: respuesta y reporte ---------------------------------------
+function buildAnswerHTML() {
+  const r = agentState.run;
+  const meta = r.meta;
+  const list = runAssets();
+  if (!list.length) return { html: t('No assets with data were found for this question.'), summary: [] };
+  const byA = rankAssets(list, 'A'), byB = rankAssets(list, 'B'), byD = rankAssets(list, 'DIFF');
+  const topA = byA[0], topB = byB[0], low = byB[byB.length - 1], topD = byD[0];
+  const scen = r.source === 'cie_api' ? `${r.sc.A.note}` : t('the selected warming levels');
+  const b = s => `<b>${escapeHtml(s)}</b>`;
+  const parts = [];
+  const lcFirst = s => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  parts.push(t('Under {scen}, {asset} faces the highest risk for {var} by {yb}: {vb} relative to the reference period ({ya}: {va}).', {
+    scen: escapeHtml(scen), asset: b(topB.name), var: escapeHtml(lcFirst(meta.name)), yb: escapeHtml(r.sc.B.short),
+    vb: fmtVal(topB.vB, meta), ya: escapeHtml(r.sc.A.short), va: fmtVal(topB.vA, meta)
+  }));
+  if (topA && topA.id !== topB.id) parts.push(t('In {ya}, the most exposed location is {asset} ({va}).', { ya: escapeHtml(r.sc.A.short), asset: b(topA.name), va: fmtVal(topA.vA, meta) }));
+  else parts.push(t('{asset} is also the most exposed location in {ya}.', { asset: b(topB.name), ya: escapeHtml(r.sc.A.short) }));
+  if (topD && topD.diff != null) parts.push(t('Risk grows fastest between {ya} and {yb} at {asset} ({d}).', { ya: escapeHtml(r.sc.A.short), yb: escapeHtml(r.sc.B.short), asset: b(topD.name), d: fmtVal(topD.diff, meta, true) }));
+  if (list.length > 1 && low) parts.push(t('The lowest exposure in {yb} is at {asset} ({vb}).', { yb: escapeHtml(r.sc.B.short), asset: b(low.name), vb: fmtVal(low.vB, meta) }));
+  if (meta.worse === 'low') parts.push(t('For this variable, lower values mean more risk.'));
+  parts.push(`<span class="text-sky-300">${t(RECOMMENDATIONS[RECO_BY_VAR[r.variable] || 'water'])}</span>`);
+  parts.push(`<span class="text-slate-500 text-[10px]">${t('Values are changes relative to the CIE reference period, at ~55 km resolution. They describe climate hazard, not financial losses.')}</span>`);
+  return { html: parts.join(' '), ranking: byB };
+}
+
+async function runResponseAgent() {
+  if (agentState.busy || agentState.step !== 2) return;
+  agentState.busy = true;
+  disableNextButtons();
+  agentState.step = 3;
+  updateStepButtons();
+  try {
+    const box = addAgentBubble(3);
+    await runThinking(box, [t('Combining the query, validated data and retrieved context'), t('Generating the answer with the LLM')], 700);
+    const ans = buildAnswerHTML();
+    agentState.run.answerHTML = ans.html;
+    await streamText(box, ans.html);
+
+    const meta = agentState.run.meta;
+    const rows = (ans.ranking || []).slice(0, 5).map((a, i) => `<tr class="border-t border-slate-800/60"><td class="py-0.5 pr-2 text-slate-500">${i + 1}</td><td class="py-0.5 pr-2 text-slate-200">${escapeHtml(a.name)}</td><td class="py-0.5 pr-2 text-right">${fmtNum(a.vA)}</td><td class="py-0.5 pr-2 text-right text-amber-300">${fmtNum(a.vB)}</td><td class="py-0.5 text-right ${a.diff != null && isWorse(a.diff, meta) ? 'text-rose-400' : 'text-emerald-400'}">${a.diff == null ? '—' : (a.diff > 0 ? '+' : '') + fmtNum(a.diff)}</td></tr>`).join('');
+    const sc = agentState.run.sc;
+    box.insertAdjacentHTML('beforeend', `
+      <table class="w-full text-[10px] font-mono"><thead class="text-slate-500 text-[9px] uppercase"><tr><th class="text-left">#</th><th class="text-left">${t('Asset')}</th><th class="text-right">${escapeHtml(sc.A.short)}</th><th class="text-right">${escapeHtml(sc.B.short)}</th><th class="text-right">Δ</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="p-2.5 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 overflow-hidden"><i class="fa-solid fa-file-pdf text-red-400 text-xl shrink-0"></i>
+          <div class="truncate"><p class="text-[10px] font-bold text-white truncate">${escapeHtml(reportFileName())}</p><p class="text-[9px] text-slate-400">${t('Summary report generated by the LLM')}</p></div></div>
+        <button onclick="openAgentReport()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold shrink-0"><i class="fa-solid fa-eye"></i> ${t('Preview')}</button>
+      </div>` + nextButton(t('Continue to delivery and feedback'), 'runDeliveryAgent()'));
+    scrollChat();
+  } finally {
+    agentState.busy = false;
+    updateStepButtons();
+  }
+}
+
+function reportFileName() {
+  const d = new Date().toISOString().slice(0, 10);
+  return `Climate_Risk_Summary_${agentState.run?.variable || 'portfolio'}_${d}.pdf`;
+}
+
+/** Reporte PDF (vista imprimible → "Guardar como PDF") */
+function openAgentReport() {
+  const r = agentState.run;
+  if (!r) return;
+  const w = window.open('', '_blank');
+  if (!w) { showToast(t('Allow pop-ups to open the report.'), 'error'); return; }
+  const meta = r.meta, sc = r.sc;
+  const list = rankAssets(runAssets(), 'B');
+  const date = new Date().toLocaleDateString(LOCALES[currentLang] || 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const scen = r.source === 'cie_api' ? `${sc.A.note}${r.wl?.A != null ? ` (+${r.wl.A}°C / +${r.wl.B}°C)` : ''}` : t(SOURCES[r.source].label);
+  const rows = list.map((a, i) => `<tr><td>${i + 1}</td><td><b>${escapeHtml(a.name)}</b></td><td class="num">${fmtNum(a.vA)}</td><td class="num">${fmtNum(a.vB)}</td><td class="num">${a.diff == null ? '—' : (a.diff > 0 ? '+' : '') + fmtNum(a.diff)}</td><td>${t(a.tier || 'NA')}</td></tr>`).join('');
+  w.document.write(`<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${escapeHtml(reportFileName())}</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11.5px; max-width: 180mm; margin: 0 auto; }
+  .top { border-bottom: 3px solid #0f766e; padding-bottom: 8px; margin-bottom: 14px; }
+  .brand { font-size: 10px; color: #0f766e; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 20px; margin: 4px 0; } h2 { font-size: 13px; margin: 16px 0 6px; color: #0f766e; }
+  .muted { color: #64748b; } .q { background: #f1f5f9; border-left: 4px solid #2563eb; padding: 8px 10px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th { text-align: left; font-size: 9.5px; text-transform: uppercase; color: #475569; border-bottom: 1.5px solid #cbd5e1; padding: 5px 4px; }
+  td { padding: 5px 4px; border-bottom: 1px solid #eef2f7; } .num { text-align: right; font-family: "Courier New", monospace; }
+  .note { font-size: 9.5px; color: #475569; border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 8px; line-height: 1.45; }
+  .noprint { margin: 10px 0; } @media print { .noprint { display: none; } }
+  button { background: #1d4ed8; color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; font-weight: 700; cursor: pointer; }
+</style></head><body>
+  <div class="noprint"><button onclick="print()">${t('Save as PDF / Print')}</button></div>
+  <div class="top"><div class="brand">SEI · AI Climate Risk Portfolio Explorer</div>
+    <h1>${t('Climate risk summary report')}</h1>
+    <div class="muted">${escapeHtml(date)} · ${t('Generated by the AI agents (demonstration)')}</div></div>
+  <h2>${t('Question')}</h2><div class="q">${escapeHtml(r.query)}</div>
+  <h2>${t('Answer')}</h2><p>${r.answerHTML || ''}</p>
+  <h2>${t('Data used')}</h2>
+  <table><tbody>
+    <tr><td class="muted">${t('Variable')}</td><td><b>${escapeHtml(meta.name)}</b>${meta.unit ? ` (${escapeHtml(meta.unit)})` : ''}</td></tr>
+    <tr><td class="muted">${t('Scenario')}</td><td>${escapeHtml(scen)}</td></tr>
+    <tr><td class="muted">${t('Horizons')}</td><td>${escapeHtml(sc.A.short)} · ${escapeHtml(sc.B.short)}</td></tr>
+    <tr><td class="muted">${t('Source')}</td><td>Climate Analytics — Climate Impact Explorer (CIE v2)</td></tr>
+  </tbody></table>
+  <h2>${t('Ranking of locations')}</h2>
+  <table><thead><tr><th>#</th><th>${t('Asset')}</th><th class="num">${escapeHtml(sc.A.short)}</th><th class="num">${escapeHtml(sc.B.short)}</th><th class="num">Δ</th><th>${t('Relative tier')}</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="note">${t('This report was produced by a demonstration of the AI agent workflow. The answer text is simulated; the values come from CIE v2 as shown in the platform. Values are changes relative to the CIE reference period at ~55 km resolution and describe climate hazard, not financial losses.')}</div>
+  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));<\/script>
+</body></html>`);
+  w.document.close();
+}
+
+// --- Agente 4: entrega y retroalimentación ---------------------------------
+async function runDeliveryAgent() {
+  if (agentState.busy || agentState.step !== 3) return;
+  agentState.busy = true;
+  disableNextButtons();
+  agentState.step = 4;
+  updateStepButtons();
+  try {
+    const box = addAgentBubble(4);
+    await runThinking(box, [t('Preparing the report for delivery')], 500);
+    box.insertAdjacentHTML('beforeend', `
+      <p>${t('Your report is ready. How would you like to receive it?')}</p>
+      <div class="flex flex-wrap gap-1.5">
+        <button onclick="showEmailForm(this)" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:border-violet-500/60 text-[10px] text-slate-200"><i class="fa-solid fa-envelope text-violet-400"></i> ${t('Send by email')}</button>
+        <button onclick="deliverByDownload(this)" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-950/60 hover:border-violet-500/60 text-[10px] text-slate-200"><i class="fa-solid fa-download text-violet-400"></i> ${t('Download to my device')}</button>
+      </div>
+      <div id="agent-delivery-area" class="space-y-2"></div>`);
+    scrollChat();
+  } finally {
+    agentState.busy = false;
+    updateStepButtons();
+  }
+}
+
+function showEmailForm(btn) {
+  const area = document.getElementById('agent-delivery-area');
+  if (!area) return;
+  area.innerHTML = `
+    <div class="flex gap-1.5">
+      <input id="agent-email" type="email" placeholder="${t('name@organization.org')}" class="flex-1 bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-violet-500">
+      <button onclick="deliverByEmail()" class="px-2.5 py-1 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[10px] font-bold">${t('Send')}</button>
+    </div>`;
+  document.getElementById('agent-email')?.focus();
+  scrollChat();
+}
+
+function deliverByEmail() {
+  const email = document.getElementById('agent-email')?.value.trim();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { showToast(t('Please enter a valid email address.'), 'error'); return; }
+  const area = document.getElementById('agent-delivery-area');
+  area.innerHTML = `<p class="text-emerald-400 text-[10px]"><i class="fa-solid fa-circle-check"></i> ${t('Report {f} queued for {e}.', { f: escapeHtml(reportFileName()), e: escapeHtml(email) })}</p>
+    <p class="text-slate-500 text-[9px]">${t('Demonstration: no email is actually sent.')}</p>`;
+  askSatisfactionSurvey();
+}
+
+function deliverByDownload() {
+  openAgentReport();
+  const area = document.getElementById('agent-delivery-area');
+  area.innerHTML = `<p class="text-emerald-400 text-[10px]"><i class="fa-solid fa-circle-check"></i> ${t('Report opened. Use "Save as PDF" to store it on your device.')}</p>`;
+  askSatisfactionSurvey();
+}
+
+function askSatisfactionSurvey() {
+  if (document.getElementById('agent-survey')) return;
+  const area = document.getElementById('agent-delivery-area');
+  area.insertAdjacentHTML('beforeend', `
+    <div id="agent-survey" class="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+      <p class="font-bold text-slate-100 text-[10px]"><i class="fa-solid fa-star text-amber-400"></i> ${t('Brief satisfaction survey')}</p>
+      <p class="text-[10px] text-slate-300">${t('How satisfied are you with the answer?')}</p>
+      <div class="flex gap-1" id="agent-stars">${[1, 2, 3, 4, 5].map(n => `<button onclick="setSurveyRating(${n})" data-star="${n}" class="text-slate-600 hover:text-amber-400 text-sm"><i class="fa-solid fa-star"></i></button>`).join('')}</div>
+      <p class="text-[10px] text-slate-300">${t('Was the information useful for your decision?')}</p>
+      <div class="flex gap-1.5">
+        <button onclick="setSurveyUseful(this, true)" data-useful="yes" class="px-2 py-0.5 rounded border border-slate-700 text-[10px] text-slate-300">${t('Yes')}</button>
+        <button onclick="setSurveyUseful(this, false)" data-useful="no" class="px-2 py-0.5 rounded border border-slate-700 text-[10px] text-slate-300">${t('No')}</button>
+      </div>
+      <textarea id="agent-comment" rows="2" placeholder="${t('Optional comment')}" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-violet-500"></textarea>
+      <button onclick="submitSurvey()" class="px-3 py-1 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[10px] font-bold">${t('Submit feedback')}</button>
+    </div>`);
+  scrollChat();
+}
+
+const surveyState = { rating: 0, useful: null };
+
+function setSurveyRating(n) {
+  surveyState.rating = n;
+  document.querySelectorAll('#agent-stars [data-star]').forEach(b => {
+    b.className = `${Number(b.dataset.star) <= n ? 'text-amber-400' : 'text-slate-600'} hover:text-amber-400 text-sm`;
+  });
+}
+
+function setSurveyUseful(btn, value) {
+  surveyState.useful = value;
+  btn.parentElement.querySelectorAll('button').forEach(b => {
+    const on = (b.dataset.useful === 'yes') === value;
+    b.className = `px-2 py-0.5 rounded border text-[10px] ${on ? 'border-violet-500 bg-violet-500/20 text-white' : 'border-slate-700 text-slate-300'}`;
+  });
+}
+
+function submitSurvey() {
+  if (!surveyState.rating) { showToast(t('Please select a rating from 1 to 5 stars.'), 'error'); return; }
+  const survey = document.getElementById('agent-survey');
+  if (survey) survey.innerHTML = `<p class="text-emerald-400 text-[10px]"><i class="fa-solid fa-heart"></i> ${t('Thank you! Your rating ({r}/5) helps us evaluate and improve the agents (human-in-the-loop).', { r: surveyState.rating })}</p>`;
+  agentState.done = true;
+  surveyState.rating = 0; surveyState.useful = null;
+  updateStepButtons();
+  chatBody()?.insertAdjacentHTML('beforeend', `<p class="text-center text-[10px] text-slate-500 py-1">${t('Workflow completed. Ask a new question to start again.')}</p>`);
+  scrollChat();
+}
+
+
+// =========================================================================
+// 18. IDIOMA (EN principal, ES, PT) Y TEMA CLARO / OSCURO
+// =========================================================================
+function storageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function storageSet(k, v) { try { localStorage.setItem(k, v); } catch { /* modo privado */ } }
+
+function initLanguage() {
+  const sel = document.getElementById('lang-selector');
+  const saved = storageGet('ace-lang');
+  const lang = LANGS[saved] ? saved : 'en'; // inglés por defecto
+  if (sel) {
+    sel.innerHTML = Object.keys(LANGS).map(k => `<option value="${k}">${LANG_FLAGS[k]} ${k.toUpperCase()}</option>`).join('');
+    sel.addEventListener('change', e => setLanguage(e.target.value));
+  }
+  setLanguage(lang, { initial: true });
+}
+
+function setLanguage(lang, opts = {}) {
+  if (!LANGS[lang]) return;
+  currentLang = lang;
+  storageSet('ace-lang', lang);
+  document.documentElement.lang = lang;
+  const sel = document.getElementById('lang-selector');
+  if (sel) sel.value = lang;
+  translateStatic(document.body);
+  applyTheme(document.documentElement.dataset.theme || 'dark', false);
+  if (opts.initial) return;
+  refreshDynamicUI();
+}
+
+/** Vuelve a pintar lo que se genera desde JS en el idioma activo */
+function refreshDynamicUI() {
+  const srcSel = document.getElementById('climate-source');
+  if (srcSel) {
+    const v = srcSel.value;
+    srcSel.innerHTML = Object.entries(SOURCES).map(([k, s]) => `<option value="${k}">${t(s.label)}</option>`).join('');
+    srcSel.value = v;
+  }
+  poblarSelectorVariables();
+  renderScenarioButtons();
+  renderizarTarjetasMapasBase();
+  renderLegend();
+  renderActiveLayers();
+  renderPortfolio();
+  if (lastClimateStatus) setClimateStatus(...lastClimateStatus);
+  if (!activeDrawTool) setStatusDibujo(t('No active tool'), 'text-[9px] text-slate-400 italic px-1');
+  if (agentState.step === 0) renderAgentIntro();
+  else {
+    const input = document.getElementById('user-chat-input');
+    if (input) input.placeholder = t('Ask about the climate risk of your portfolio...');
+  }
+  if (cesiumPopupAssetId) {
+    const a = state.assets.find(x => x.id === cesiumPopupAssetId);
+    if (a) document.getElementById('cesium-popup-content').innerHTML = assetPopupHTML(a);
+  } else cerrarCesiumPopup();
+  leafletMap?.closePopup();
+}
+
+function isLightTheme() { return document.documentElement.dataset.theme === 'light'; }
+
+function initTheme() {
+  applyTheme(storageGet('ace-theme') === 'light' ? 'light' : 'dark', false);
+  document.getElementById('theme-toggle')?.addEventListener('click', () => applyTheme(isLightTheme() ? 'dark' : 'light'));
+}
+
+function applyTheme(theme, rerender = true) {
+  document.documentElement.dataset.theme = theme;
+  storageSet('ace-theme', theme);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.className = `fa-solid ${theme === 'light' ? 'fa-sun' : 'fa-moon'} text-xs`;
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.title = t(theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+  if (rerender) { renderPortfolio(); renderLegend(); }
 }
