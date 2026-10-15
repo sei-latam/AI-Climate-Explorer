@@ -1,7 +1,5 @@
 /* =========================================================================
  * AI CLIMATE RISK PORTFOLIO EXPLORER — geovisor.js
- * Lógica de datos climáticos (CIE v2 / GIRI), extracción por punto,
- * grilla con simbología + leyenda (Leaflet 2D y Cesium 3D) y portafolio.
  * ========================================================================= */
 
 // --- TOKEN CESIUM ION ---
