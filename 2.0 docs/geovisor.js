@@ -1967,7 +1967,7 @@ const pipelineConfig = {
   1: { title: 'Step 1: Climate Data Agent', placeholder: 'Request climate data grid extraction...', nextStep: 2 },
   2: { title: 'Step 2: Risk Analysis Agent', placeholder: 'Request vulnerability and loss evaluation...', nextStep: 3 },
   3: { title: 'Step 3: Report Generator Agent', placeholder: 'Request PDF report consolidation...', nextStep: 4 },
-  4: { title: 'Step 4: Climate Finance Agent', placeholder: 'Search funding opportunities...', nextStep: null }
+  4: { title: 'Step 4: Climate Finance Agent', placeholder: 'Finish analysis...', nextStep: null }
 };
 
 function buildAgentResponse(step) {
